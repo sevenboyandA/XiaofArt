@@ -262,64 +262,10 @@ window.XIAOFART_SITE_DATA = {
         ""
       ],
       "images": [],
-      "updatedAt": "2026-04-27T14:54:48.309Z",
+      "updatedAt": "2026-04-28T13:25:19.770Z",
       "createdAt": "2026-04-27T13:12:05.000Z",
       "__v": 0,
       "coverImage": "images/managed/project-5/image-1777301672318-10.jpg"
-    },
-    {
-      "_id": "69ef60a5aa1f35bf41c0f9f1",
-      "id": 8,
-      "order": 7,
-      "title": "Visual Identity",
-      "category": "道士下山",
-      "creationDate": "2023-01-01",
-      "year": 2023,
-      "heroImage": "images/project1/8.jpg",
-      "gallery": [
-        "images/project1/8.jpg",
-        "images/project1/9.jpg",
-        "images/project1/10.jpg",
-        "images/project1/11.jpg"
-      ],
-      "imageTitles": [
-        "",
-        "",
-        "",
-        ""
-      ],
-      "images": [],
-      "updatedAt": "2026-04-27T14:52:54.520Z",
-      "createdAt": "2026-04-27T13:12:05.000Z",
-      "__v": 0,
-      "coverImage": "images/project1/8.jpg"
-    },
-    {
-      "_id": "69ef60a5aa1f35bf41c0f9f3",
-      "id": 10,
-      "order": 8,
-      "title": "Web Design",
-      "category": "追梦",
-      "creationDate": "2024-01-01",
-      "year": 2024,
-      "heroImage": "images/project1/10.jpg",
-      "gallery": [
-        "images/project1/10.jpg",
-        "images/project1/11.jpg",
-        "images/project1/12.jpg",
-        "images/project1/1.jpg"
-      ],
-      "imageTitles": [
-        "",
-        "",
-        "",
-        ""
-      ],
-      "images": [],
-      "updatedAt": "2026-04-27T14:52:54.520Z",
-      "createdAt": "2026-04-27T13:12:05.000Z",
-      "__v": 0,
-      "coverImage": "images/project1/10.jpg"
     }
   ]
 };

@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project 1 | XiaofArt</title>
+    <script>
+        try {
+            const transitionData = JSON.parse(sessionStorage.getItem('xiaofartProjectTransition') || 'null');
+            if (transitionData && transitionData.src) {
+                const safeSrc = String(transitionData.src).replace(/["\\\n\r]/g, '');
+                document.documentElement.classList.add('project-transition-primed');
+                document.documentElement.style.setProperty('--transition-image-src', `url("${safeSrc}")`);
+            }
+        } catch (error) {}
+    </script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .project-gallery {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+            cursor: none;
+            padding-top: 80px;
+            overflow-x: hidden;
+        }
+        
+        .gallery-container {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .gallery-image {
+            position: relative;
+            width: 60vw;
+            height: 80vh;
+            left: 0;
+            top: -50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.6s var(--transition-smooth);
+            opacity: 0;
+            transform: scale(0.9);
+        }
+        
+        .gallery-image.fade-in {
+            opacity: 1;
+            transform: scale(1);
+            transition: opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        
+        .gallery-image img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+        
+        .gallery-content {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%) translateY(30px);
+            width: 35%;
+            padding: 0 2rem 0 0.5rem;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            transition-delay: 0.2s;
+        }
+        
+        .gallery-content.fade-in {
+            opacity: 1;
+            transform: translateY(-50%) translateY(0);
+        }
+        
+        .gallery-title {
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            margin-bottom: 2rem;
+            line-height: 1.05;
+            color: var(--text-primary);
+            position: relative;
+        }
+        
+        .gallery-title::after {
+            content: '';
+            position: absolute;
+            bottom: -0.5rem;
+            left: 0;
+            width: 60px;
+            height: 2px;
+            background: linear-gradient(90deg, #ff6b00, #ff8c32);
+        }
+        
+        .gallery-info {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+        
+        .info-label {
+            font-size: 0.6rem;
+            font-weight: 600;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+        
+        .info-value {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--color-orange);
+            letter-spacing: 0.02em;
+        }
+        
+        .gallery-controls {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        .control-btn {
+            display: none;
+        }
+        
+        .slide-indicator {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .slide-dot {
+            width: 40px;
+            height: 2px;
+            border-radius: 1px;
+            background-color: var(--border-color);
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            cursor: none;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .slide-dot::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--color-orange);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        
+        .slide-dot.active {
+            background-color: var(--border-color);
+        }
+        
+        .slide-dot.active::after {
+            transform: scaleX(1);
+        }
+        
+        .slide-dot:hover::after {
+            transform: scaleX(0.5);
+        }
+        
+        /* Image modal */
+        .image-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        
+        .image-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .modal-content {
+            position: relative;
+            max-width: 90vw;
+            max-height: 90vh;
+            transform: scale(0.9);
+            transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        
+        .image-modal.active .modal-content {
+            transform: scale(1);
+        }
+        
+        .modal-image {
+            max-width: 100%;
+            max-height: 80vh;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: -50px;
+            right: 0;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 2rem;
+            cursor: none;
+            transition: all 0.3s ease;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .modal-close:hover {
+            transform: scale(1.1) rotate(90deg);
+            background: rgba(255, 107, 0, 0.3);
+            color: #fff;
+        }
+        
+        @media (max-width: 992px) {
+            .gallery-container {
+                flex-direction: column;
+                height: auto;
+                min-height: 100vh;
+            }
+
+            .gallery-image {
+                width: 100vw;
+                height: 60vh;
+                margin-top: 2rem;
+            }
+
+            .gallery-content {
+                position: relative;
+                width: 100%;
+                padding: 2rem;
+                transform: none;
+                top: auto;
+                right: auto;
+            }
+            
+            .gallery-controls {
+                bottom: 1.5rem;
+                gap: 6px;
+            }
+            
+            .slide-dot {
+                width: 30px;
+                height: 2px;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .gallery-controls {
+                bottom: 1rem;
+                gap: 4px;
+            }
+            
+            .slide-dot {
+                width: 24px;
+                height: 2px;
+            }
+        }
+
+        /* Adaptive project detail layout */
+        .project-gallery {
+            --gallery-top-space: clamp(72px, 9svh, 96px);
+            --gallery-bottom-space: clamp(4.5rem, 8svh, 6rem);
+            height: 100svh;
+            min-height: 100svh;
+            padding: var(--gallery-top-space) clamp(1.25rem, 4vw, 4rem) var(--gallery-bottom-space);
+            display: flex;
+            align-items: center;
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+
+        .gallery-container {
+            width: min(100%, 1500px);
+            min-height: calc(100svh - var(--gallery-top-space) - var(--gallery-bottom-space));
+            height: auto;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.85fr);
+            gap: clamp(1.5rem, 4.5vw, 5rem);
+            align-items: center;
+            overflow: visible;
+        }
+
+        .gallery-image {
+            width: 100%;
+            height: min(72svh, calc(100svh - var(--gallery-top-space) - var(--gallery-bottom-space)));
+            min-height: 280px;
+            max-height: 820px;
+            top: 0;
+        }
+
+        .gallery-image img {
+            width: 100%;
+            height: 100%;
+        }
+
+        .gallery-content {
+            position: static;
+            justify-self: end;
+            width: min(100%, 34rem);
+            max-height: calc(100svh - var(--gallery-top-space) - var(--gallery-bottom-space));
+            padding: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            transform: translateY(24px);
+            scrollbar-width: none;
+        }
+
+        .gallery-content::-webkit-scrollbar {
+            width: 0;
+            height: 0;
+        }
+
+        .gallery-content.fade-in {
+            transform: translateY(0);
+        }
+
+        .gallery-title {
+            max-width: 100%;
+            font-size: clamp(1.7rem, min(4.8vw, 8svh), 4rem);
+            line-height: 1.02;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            hyphens: auto;
+            text-wrap: balance;
+        }
+
+        @media (max-height: 720px) and (min-width: 993px) {
+            .project-gallery {
+                --gallery-top-space: 70px;
+                --gallery-bottom-space: 3.5rem;
+            }
+
+            .gallery-image {
+                min-height: 220px;
+            }
+
+            .gallery-title {
+                margin-bottom: 1.25rem;
+            }
+
+            .gallery-info {
+                gap: 0.9rem;
+            }
+        }
+
+        @media (max-width: 992px) {
+            .project-gallery {
+                --gallery-top-space: 88px;
+                --gallery-bottom-space: 5rem;
+                align-items: flex-start;
+            }
+
+            .gallery-container {
+                min-height: auto;
+                grid-template-columns: 1fr;
+                gap: 2.5rem;
+            }
+
+            .gallery-image {
+                width: 100%;
+                height: min(54svh, 560px);
+                min-height: 260px;
+                top: 0;
+            }
+
+            .gallery-content {
+                width: min(100%, 620px);
+                max-height: none;
+                justify-self: center;
+                overflow: visible;
+                transform: translateY(24px);
+            }
+
+            .gallery-content.fade-in {
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .project-gallery {
+                --gallery-top-space: 80px;
+                --gallery-bottom-space: 4.75rem;
+                padding-right: 1.25rem;
+                padding-left: 1.25rem;
+            }
+
+            .gallery-image {
+                height: min(46svh, 440px);
+                min-height: 220px;
+            }
+
+            .gallery-title {
+                font-size: clamp(1.8rem, 11vw, 3rem);
+                margin-bottom: 1.5rem;
+            }
+
+            .gallery-info {
+                gap: 1rem;
+            }
+
+            .slide-dot {
+                width: 32px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="cursor" id="cursor"></div>
+    <div class="cursor-follower" id="cursorFollower"></div>
+    
+    <div class="loader" id="loader">
+        <div class="loader-line"></div>
+    </div>
+
+    <nav class="detail-nav">
+        <a href="portfolio.html" class="nav-logo">XiaofArt</a>
+        <div class="nav-right">
+            <ul class="nav-links">
+                <li><a href="portfolio.html">PROJECTS</a></li>
+                <li><a href="about.html">ABOUT</a></li>
+                <li><a href="contact.html">CONTACT</a></li>
+            </ul>
+            <div class="theme-toggle" id="themeToggle" title="切换主题"></div>
+        </div>
+    </nav>
+
+    <section class="project-gallery">
+        <div class="gallery-container">
+            <div class="gallery-image" id="galleryImage">
+                <img src="images/project1/1.jpg" alt="Project 1 - Image 1" id="currentImage">
+            </div>
+            <div class="gallery-content">
+                <h1 class="gallery-title" id="galleryTitle">Abstract Composition</h1>
+                <div class="gallery-info">
+                    <div class="info-item">
+                        <span class="info-label">Image</span>
+                        <span class="info-value" id="imageCounter">1 / 12</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Category</span>
+                        <span class="info-value" id="galleryCategory">Full in Love with You</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Year</span>
+                        <span class="info-value" id="galleryYear">2026</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="gallery-controls">
+            <div class="control-btn" id="prevBtn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 18l-6-6 6-6"/>
+                </svg>
+            </div>
+            <div class="slide-indicator" id="slideIndicator">
+            </div>
+            <div class="control-btn" id="nextBtn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </div>
+        </div>
+    </section>
+
+    <!-- Image modal -->
+    <div class="image-modal" id="imageModal">
+        <div class="modal-content">
+            <img src="" alt="Full size image" class="modal-image" id="modalImage">
+            <div class="modal-close" id="modalClose">&times;</div>
+        </div>
+    </div>
+
+    <script src="site-data.js"></script>
+    <script src="script.js"></script>
+    <script>
+        // Override initLoader for project pages to avoid loading animation
+        function initLoader() {
+            const loader = document.getElementById('loader');
+            if (loader) {
+                loader.classList.add('hidden');
+            }
+        }
+        
+        // Project gallery functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get project ID from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const projectId = parseInt(urlParams.get('id') || 1);
+            
+            // Get project data
+            const projects = window.XIAOFART_SITE_DATA?.projects || window.projects || [];
+            const project = projects.find(p => p.id === projectId) || projects[0];
+            
+            if (!project) {
+                window.location.href = 'portfolio.html';
+                return;
+            }
+            
+            // Update page title
+            document.title = `${project.title} | XiaofArt`;
+            
+            // Create image data from project gallery
+            const imageData = (project.gallery || []).map((src, index) => ({
+                src: sanitizeImagePath(src, project.heroImage || 'images/project1/1.jpg'),
+                title: project.imageTitles && project.imageTitles[index] ? project.imageTitles[index] : project.title,
+                description: project.description || ''
+            }));
+            if (imageData.length === 0) {
+                imageData.push({
+                    src: sanitizeImagePath(project.heroImage, 'images/project1/1.jpg'),
+                    title: project.title,
+                    description: project.description || ''
+                });
+            }
+            
+            let currentIndex = 0;
+            const totalImages = imageData.length;
+            
+            const currentImage = document.getElementById('currentImage');
+            const galleryTitle = document.getElementById('galleryTitle');
+            const imageCounter = document.getElementById('imageCounter');
+            const galleryCategory = document.getElementById('galleryCategory');
+            const galleryYear = document.getElementById('galleryYear');
+            const slideIndicator = document.getElementById('slideIndicator');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const imageModal = document.getElementById('imageModal');
+            const modalImage = document.getElementById('modalImage');
+            const modalClose = document.getElementById('modalClose');
+            
+            // Update category and year
+            if (galleryCategory) {
+                galleryCategory.textContent = project.category || '';
+            }
+            if (galleryYear) {
+                galleryYear.textContent = project.year || '';
+            }
+            
+            // Generate slide dots
+            slideIndicator.innerHTML = '';
+            for (let i = 0; i < totalImages; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'slide-dot' + (i === 0 ? ' active' : '');
+                slideIndicator.appendChild(dot);
+            }
+            const slideDots = document.querySelectorAll('.slide-dot');
+            
+            // Update image and UI
+            function updateImage(index) {
+                currentImage.src = imageData[index].src;
+                galleryTitle.textContent = imageData[index].title;
+                imageCounter.textContent = `${index + 1} / ${totalImages}`;
+                
+                // Update slide dots
+                slideDots.forEach((dot, i) => {
+                    if (i === index) {
+                        dot.classList.add('active');
+                    } else {
+                        dot.classList.remove('active');
+                    }
+                });
+            }
+            
+            // Next image
+            function nextImage() {
+                currentIndex = (currentIndex + 1) % totalImages;
+                updateImage(currentIndex);
+            }
+            
+            // Previous image
+            function prevImage() {
+                currentIndex = (currentIndex - 1 + totalImages) % totalImages;
+                updateImage(currentIndex);
+            }
+            
+            // Event listeners
+            nextBtn.addEventListener('click', nextImage);
+            prevBtn.addEventListener('click', prevImage);
+            
+            // Mouse wheel navigation
+            document.querySelector('.gallery-container').addEventListener('wheel', function(e) {
+                if (e.deltaY > 0) {
+                    nextImage();
+                } else {
+                    prevImage();
+                }
+            });
+            
+            // Slide dot navigation
+            slideDots.forEach((dot, index) => {
+                dot.addEventListener('click', function() {
+                    currentIndex = index;
+                    updateImage(currentIndex);
+                });
+            });
+            
+            // Image click to open modal
+            currentImage.addEventListener('click', function() {
+                modalImage.src = imageData[currentIndex].src;
+                imageModal.classList.add('active');
+            });
+            
+            // Close modal
+            modalClose.addEventListener('click', function() {
+                imageModal.classList.remove('active');
+            });
+            
+            // Close modal when clicking outside
+            imageModal.addEventListener('click', function(e) {
+                if (e.target === imageModal) {
+                    imageModal.classList.remove('active');
+                }
+            });
+            
+            // Initialize
+            updateImage(currentIndex);
+            
+            // Trigger entry animation
+            setTimeout(() => {
+                const galleryImage = document.getElementById('galleryImage');
+                const galleryContent = document.querySelector('.gallery-content');
+                
+                if (galleryImage) {
+                    galleryImage.classList.add('fade-in');
+                }
+                
+                if (galleryContent) {
+                    galleryContent.classList.add('fade-in');
+                }
+            }, 100);
+        });
+    </script>
+</body>
+</html>

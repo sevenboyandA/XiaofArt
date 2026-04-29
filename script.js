@@ -660,11 +660,15 @@ function initHorizontalScroll() {
     let isScrolling = false;
     let scrollTimeout;
     let wheelAccumulator = 0;
+    let frameRequest = 0;
+    let queuedPosition = 0;
+    let gestureStartTime = 0;
 
-    const scrollLockMs = 220;
-    const wheelThreshold = 24;
+    const scrollLockMs = 280;
+    const wheelThreshold = 36;
     const dragResistance = 1;
     const dragThreshold = 0.06;
+    const flickVelocityThreshold = 0.34;
 
     function getSectionWidth() {
         return container.offsetWidth || window.innerWidth;
@@ -674,13 +678,32 @@ function initHorizontalScroll() {
         return Math.max(0, Math.min(totalSections - 1, position));
     }
 
-    function setTrackPosition(position, animated = false) {
+    function applyTrackPosition(position, animated = false) {
         const sectionWidth = getSectionWidth();
         track.style.transition = animated
-            ? 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)'
+            ? 'transform 0.48s cubic-bezier(0.16, 1, 0.3, 1)'
             : 'none';
-        track.style.transform = `translateX(-${position * sectionWidth}px)`;
+        track.style.transform = `translate3d(-${position * sectionWidth}px, 0, 0)`;
         updateProgress(position, totalSections);
+    }
+
+    function setTrackPosition(position, animated = false) {
+        queuedPosition = position;
+
+        if (animated) {
+            if (frameRequest) {
+                cancelAnimationFrame(frameRequest);
+                frameRequest = 0;
+            }
+            applyTrackPosition(queuedPosition, true);
+            return;
+        }
+
+        if (frameRequest) return;
+        frameRequest = requestAnimationFrame(() => {
+            frameRequest = 0;
+            applyTrackPosition(queuedPosition, false);
+        });
     }
 
     function scrollToSection(index, force = false) {
@@ -740,7 +763,12 @@ function initHorizontalScroll() {
 
     function finishGesture(startIndex, deltaX, deltaY) {
         const sectionWidth = getSectionWidth();
-        const shouldMove = Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > sectionWidth * dragThreshold;
+        const duration = Math.max(1, performance.now() - gestureStartTime);
+        const velocity = Math.abs(deltaX) / duration;
+        const shouldMove = Math.abs(deltaX) > Math.abs(deltaY) && (
+            Math.abs(deltaX) > sectionWidth * dragThreshold ||
+            velocity > flickVelocityThreshold
+        );
         const direction = shouldMove ? (deltaX > 0 ? 1 : -1) : 0;
         scrollToSection(clampPosition(startIndex + direction), true);
     }
@@ -753,6 +781,7 @@ function initHorizontalScroll() {
         touchEndY = touchStartY;
         touchStartIndex = currentIndex;
         isTouching = true;
+        gestureStartTime = performance.now();
     }, { passive: true });
 
     container.addEventListener('touchmove', (e) => {
@@ -791,6 +820,7 @@ function initHorizontalScroll() {
         startX = e.clientX;
         startY = e.clientY;
         dragStartIndex = currentIndex;
+        gestureStartTime = performance.now();
         container.style.cursor = 'grabbing';
     });
 

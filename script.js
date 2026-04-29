@@ -661,10 +661,10 @@ function initHorizontalScroll() {
     let scrollTimeout;
     let wheelAccumulator = 0;
 
-    const scrollLockMs = 880;
-    const wheelThreshold = 90;
-    const dragResistance = 0.42;
-    const dragThreshold = 0.18;
+    const scrollLockMs = 220;
+    const wheelThreshold = 24;
+    const dragResistance = 1;
+    const dragThreshold = 0.06;
 
     function getSectionWidth() {
         return container.offsetWidth || window.innerWidth;
@@ -677,7 +677,7 @@ function initHorizontalScroll() {
     function setTrackPosition(position, animated = false) {
         const sectionWidth = getSectionWidth();
         track.style.transition = animated
-            ? 'transform 0.85s cubic-bezier(0.22, 1, 0.36, 1)'
+            ? 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)'
             : 'none';
         track.style.transform = `translateX(-${position * sectionWidth}px)`;
         updateProgress(position, totalSections);
@@ -1032,9 +1032,7 @@ function createGallerySwitcher({ imageData, currentImage, galleryTitle, imageCou
         if (!imageData.length || !currentImage || !galleryTitle || !imageCounter) {
             return false;
         }
-        if (isSwitching && !instant) {
-            return false;
-        }
+        if (isSwitching && !instant) return false;
 
         const targetIndex = normalizeIndex(index);
         const hasCurrentImage = currentImage.hasAttribute('src');
@@ -1049,15 +1047,15 @@ function createGallerySwitcher({ imageData, currentImage, galleryTitle, imageCou
         }
 
         isSwitching = true;
-        imageWrap?.style.setProperty('--gallery-switch-x', resolvedDirection >= 0 ? '-18px' : '18px');
-        content?.style.setProperty('--gallery-switch-y', '10px');
+        imageWrap?.style.setProperty('--gallery-switch-x', resolvedDirection >= 0 ? '-8px' : '8px');
+        content?.style.setProperty('--gallery-switch-y', '4px');
         imageWrap?.classList.add('is-switching');
         content?.classList.add('is-switching');
 
-        window.setTimeout(() => {
+        window.requestAnimationFrame(() => {
             commit(targetIndex);
-            imageWrap?.style.setProperty('--gallery-switch-x', resolvedDirection >= 0 ? '18px' : '-18px');
-            content?.style.setProperty('--gallery-switch-y', '-6px');
+            imageWrap?.style.setProperty('--gallery-switch-x', '0px');
+            content?.style.setProperty('--gallery-switch-y', '0px');
 
             window.requestAnimationFrame(() => {
                 imageWrap?.classList.remove('is-switching');
@@ -1066,8 +1064,8 @@ function createGallerySwitcher({ imageData, currentImage, galleryTitle, imageCou
 
             window.setTimeout(() => {
                 isSwitching = false;
-            }, 320);
-        }, 140);
+            }, 180);
+        });
 
         return true;
     }
@@ -1222,7 +1220,7 @@ function initializeInlineProjectGallery(page, project) {
         }
         setTimeout(() => {
             wheelLocked = false;
-        }, 360);
+        }, 180);
     }, { passive: false });
 
     bindGallerySwipe(galleryContainer, nextImage, prevImage);

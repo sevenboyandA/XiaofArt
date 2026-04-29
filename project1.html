@@ -445,15 +445,15 @@
 
         .gallery-image img {
             will-change: opacity, transform, filter;
-            transition: opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-                        transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-                        filter 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+            transition: opacity 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+                        transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+                        filter 0.22s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
         .gallery-image.is-switching img {
             opacity: 0;
-            transform: translateX(var(--gallery-switch-x, -18px)) scale(0.985);
-            filter: blur(4px);
+            transform: translateX(var(--gallery-switch-x, -8px)) scale(0.995);
+            filter: blur(1.5px);
         }
 
         .gallery-content.is-switching {
@@ -707,7 +707,7 @@
                 }
                 setTimeout(() => {
                     wheelLocked = false;
-                }, 360);
+                }, 180);
             }, { passive: false });
 
             let swipeStartX = 0;

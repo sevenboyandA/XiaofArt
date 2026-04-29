@@ -442,6 +442,89 @@
                 width: 32px;
             }
         }
+
+        .gallery-image img {
+            will-change: opacity, transform, filter;
+            transition: opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+                        transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+                        filter 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .gallery-image.is-switching img {
+            opacity: 0;
+            transform: translateX(var(--gallery-switch-x, -18px)) scale(0.985);
+            filter: blur(4px);
+        }
+
+        .gallery-content.is-switching {
+            opacity: 0;
+            transform: translateY(var(--gallery-switch-y, 10px));
+        }
+
+        .modal-close {
+            position: fixed;
+            top: max(1.2rem, env(safe-area-inset-top));
+            right: max(1.2rem, env(safe-area-inset-right));
+            background: rgba(0, 0, 0, 0.34);
+            z-index: 2200;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+
+        @media (max-width: 992px) {
+            .gallery-container {
+                grid-template-areas:
+                    "image"
+                    "controls"
+                    "content";
+            }
+
+            .gallery-image {
+                grid-area: image;
+            }
+
+            .gallery-controls {
+                grid-area: controls;
+                position: static;
+                width: 100%;
+                max-width: 100%;
+                transform: none;
+                justify-content: center;
+                overflow: hidden;
+                z-index: 2;
+            }
+
+            .slide-indicator {
+                width: min(100%, 520px);
+                max-width: calc(100vw - 2.5rem);
+            }
+
+            .slide-dot {
+                flex: 1 1 18px;
+                min-width: 10px;
+                max-width: 36px;
+            }
+
+            .gallery-content {
+                grid-area: content;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .gallery-controls {
+                margin: -0.5rem auto 0;
+            }
+
+            .slide-indicator {
+                gap: clamp(3px, 1.2vw, 7px);
+            }
+
+            .slide-dot {
+                width: auto;
+                height: 2px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -469,6 +552,20 @@
             <div class="gallery-image" id="galleryImage">
                 <img alt="Project image" id="currentImage" decoding="async">
             </div>
+            <div class="gallery-controls">
+                <div class="control-btn" id="prevBtn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M15 18l-6-6 6-6"/>
+                    </svg>
+                </div>
+                <div class="slide-indicator" id="slideIndicator">
+                </div>
+                <div class="control-btn" id="nextBtn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 18l6-6-6-6"/>
+                    </svg>
+                </div>
+            </div>
             <div class="gallery-content">
                 <h1 class="gallery-title" id="galleryTitle">Abstract Composition</h1>
                 <div class="gallery-info">
@@ -485,21 +582,6 @@
                         <span class="info-value" id="galleryYear">2026</span>
                     </div>
                 </div>
-            </div>
-        </div>
-        
-        <div class="gallery-controls">
-            <div class="control-btn" id="prevBtn">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M15 18l-6-6 6-6"/>
-                </svg>
-            </div>
-            <div class="slide-indicator" id="slideIndicator">
-            </div>
-            <div class="control-btn" id="nextBtn">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
             </div>
         </div>
     </section>
@@ -555,8 +637,8 @@
                 });
             }
             
-            let currentIndex = 0;
             const totalImages = imageData.length;
+            let wheelLocked = false;
             
             const currentImage = document.getElementById('currentImage');
             const galleryTitle = document.getElementById('galleryTitle');
@@ -586,33 +668,24 @@
                 slideIndicator.appendChild(dot);
             }
             const slideDots = document.querySelectorAll('.slide-dot');
-            
-            // Update image and UI
-            function updateImage(index) {
-                currentImage.src = imageData[index].src;
-                galleryTitle.textContent = imageData[index].title;
-                imageCounter.textContent = `${index + 1} / ${totalImages}`;
-                
-                // Update slide dots
-                slideDots.forEach((dot, i) => {
-                    if (i === index) {
-                        dot.classList.add('active');
-                    } else {
-                        dot.classList.remove('active');
-                    }
-                });
-            }
+
+            const gallerySwitcher = createGallerySwitcher({
+                imageData,
+                currentImage,
+                galleryTitle,
+                imageCounter,
+                slideDots: [...slideDots],
+                titleFallback: project.title
+            });
             
             // Next image
             function nextImage() {
-                currentIndex = (currentIndex + 1) % totalImages;
-                updateImage(currentIndex);
+                gallerySwitcher.next();
             }
             
             // Previous image
             function prevImage() {
-                currentIndex = (currentIndex - 1 + totalImages) % totalImages;
-                updateImage(currentIndex);
+                gallerySwitcher.prev();
             }
             
             // Event listeners
@@ -624,11 +697,17 @@
             // Mouse wheel navigation
             galleryContainer.addEventListener('wheel', function(e) {
                 e.preventDefault();
+                if (wheelLocked || Math.abs(e.deltaY) < 8) return;
+
+                wheelLocked = true;
                 if (e.deltaY > 0) {
                     nextImage();
                 } else {
                     prevImage();
                 }
+                setTimeout(() => {
+                    wheelLocked = false;
+                }, 360);
             }, { passive: false });
 
             let swipeStartX = 0;
@@ -684,14 +763,13 @@
             // Slide dot navigation
             slideDots.forEach((dot, index) => {
                 dot.addEventListener('click', function() {
-                    currentIndex = index;
-                    updateImage(currentIndex);
+                    gallerySwitcher.update(index);
                 });
             });
             
             // Image click to open modal
             currentImage.addEventListener('click', function() {
-                modalImage.src = imageData[currentIndex].src;
+                modalImage.src = imageData[gallerySwitcher.getCurrentIndex()].src;
                 imageModal.classList.add('active');
             });
             
@@ -708,7 +786,7 @@
             });
             
             // Initialize
-            updateImage(currentIndex);
+            gallerySwitcher.update(0, 0, true);
             
             // Trigger entry animation
             setTimeout(() => {

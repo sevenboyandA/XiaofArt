@@ -979,6 +979,113 @@ function bindGallerySwipe(container, onNext, onPrev) {
     }, { passive: true });
 }
 
+function createGallerySwitcher({ imageData, currentImage, galleryTitle, imageCounter, slideDots, titleFallback = '' }) {
+    const imageWrap = currentImage?.closest('.gallery-image');
+    const content = galleryTitle?.closest('.gallery-content');
+    let currentIndex = 0;
+    let isSwitching = false;
+
+    function normalizeIndex(index) {
+        const total = imageData.length;
+        return ((index % total) + total) % total;
+    }
+
+    function preload(index) {
+        if (!imageData.length) return;
+
+        [index, index + 1, index - 1].forEach(candidate => {
+            const image = imageData[normalizeIndex(candidate)];
+            if (!image || image.isPreloaded) return;
+
+            const preloadImage = new Image();
+            preloadImage.decoding = 'async';
+            preloadImage.src = image.src;
+            image.preloadImage = preloadImage;
+            image.isPreloaded = true;
+        });
+    }
+
+    function getDirection(targetIndex, direction) {
+        if (direction) return direction;
+        if (targetIndex === currentIndex) return 0;
+        if (targetIndex === normalizeIndex(currentIndex + 1)) return 1;
+        if (targetIndex === normalizeIndex(currentIndex - 1)) return -1;
+        return targetIndex > currentIndex ? 1 : -1;
+    }
+
+    function commit(index) {
+        const image = imageData[index] || imageData[0];
+        if (!image) return;
+
+        currentIndex = index;
+        currentImage.src = image.src;
+        currentImage.alt = `${titleFallback || image.title || 'Project'} - Image ${index + 1}`;
+        galleryTitle.textContent = image.title || titleFallback;
+        imageCounter.textContent = `${index + 1} / ${imageData.length}`;
+        slideDots.forEach((dot, dotIndex) => {
+            dot.classList.toggle('active', dotIndex === index);
+        });
+        preload(index);
+    }
+
+    function update(index, direction = 0, instant = false) {
+        if (!imageData.length || !currentImage || !galleryTitle || !imageCounter) {
+            return false;
+        }
+        if (isSwitching && !instant) {
+            return false;
+        }
+
+        const targetIndex = normalizeIndex(index);
+        const hasCurrentImage = currentImage.hasAttribute('src');
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const resolvedDirection = getDirection(targetIndex, direction);
+
+        preload(targetIndex);
+
+        if (instant || !hasCurrentImage || prefersReducedMotion) {
+            commit(targetIndex);
+            return true;
+        }
+
+        isSwitching = true;
+        imageWrap?.style.setProperty('--gallery-switch-x', resolvedDirection >= 0 ? '-18px' : '18px');
+        content?.style.setProperty('--gallery-switch-y', '10px');
+        imageWrap?.classList.add('is-switching');
+        content?.classList.add('is-switching');
+
+        window.setTimeout(() => {
+            commit(targetIndex);
+            imageWrap?.style.setProperty('--gallery-switch-x', resolvedDirection >= 0 ? '18px' : '-18px');
+            content?.style.setProperty('--gallery-switch-y', '-6px');
+
+            window.requestAnimationFrame(() => {
+                imageWrap?.classList.remove('is-switching');
+                content?.classList.remove('is-switching');
+            });
+
+            window.setTimeout(() => {
+                isSwitching = false;
+            }, 320);
+        }, 140);
+
+        return true;
+    }
+
+    return {
+        update,
+        next() {
+            return update(currentIndex + 1, 1);
+        },
+        prev() {
+            return update(currentIndex - 1, -1);
+        },
+        getCurrentIndex() {
+            return currentIndex;
+        }
+    };
+}
+
 function createInfoItem(label, value) {
     const item = document.createElement('div');
     const labelElement = document.createElement('span');
@@ -1044,9 +1151,9 @@ function createInlineProjectPage(project) {
 
     imageWrap.appendChild(currentImage);
     content.append(title, info);
-    container.append(imageWrap, content);
     controls.append(prevBtn, indicator, nextBtn);
-    section.append(container, controls);
+    container.append(imageWrap, controls, content);
+    section.append(container);
     modalContent.append(modalImage, modalClose);
     modal.appendChild(modalContent);
     page.append(section, modal);
@@ -1056,7 +1163,6 @@ function createInlineProjectPage(project) {
 
 function initializeInlineProjectGallery(page, project) {
     const imageData = getProjectGalleryData(project);
-    let currentIndex = 0;
     let wheelLocked = false;
 
     const currentImage = page.querySelector('.gallery-image img');
@@ -1073,36 +1179,31 @@ function initializeInlineProjectGallery(page, project) {
     imageData.forEach((_, index) => {
         const dot = document.createElement('div');
         dot.className = `slide-dot${index === 0 ? ' active' : ''}`;
-        dot.addEventListener('click', () => {
-            currentIndex = index;
-            updateImage(currentIndex);
-        });
         slideIndicator.appendChild(dot);
     });
 
     const slideDots = [...slideIndicator.querySelectorAll('.slide-dot')];
+    const gallerySwitcher = createGallerySwitcher({
+        imageData,
+        currentImage,
+        galleryTitle,
+        imageCounter,
+        slideDots,
+        titleFallback: project.title
+    });
 
-    function updateImage(index) {
-        const image = imageData[index] || imageData[0];
-        if (!image) return;
-
-        currentImage.src = image.src;
-        currentImage.alt = `${project.title} - Image ${index + 1}`;
-        galleryTitle.textContent = image.title;
-        imageCounter.textContent = `${index + 1} / ${imageData.length}`;
-        slideDots.forEach((dot, dotIndex) => {
-            dot.classList.toggle('active', dotIndex === index);
+    slideDots.forEach((dot, index) => {
+        dot.addEventListener('click', () => {
+            gallerySwitcher.update(index);
         });
-    }
+    });
 
     function nextImage() {
-        currentIndex = (currentIndex + 1) % imageData.length;
-        updateImage(currentIndex);
+        gallerySwitcher.next();
     }
 
     function prevImage() {
-        currentIndex = (currentIndex - 1 + imageData.length) % imageData.length;
-        updateImage(currentIndex);
+        gallerySwitcher.prev();
     }
 
     prevBtn.addEventListener('click', prevImage);
@@ -1127,7 +1228,7 @@ function initializeInlineProjectGallery(page, project) {
     bindGallerySwipe(galleryContainer, nextImage, prevImage);
 
     currentImage.addEventListener('click', () => {
-        modalImage.src = imageData[currentIndex].src;
+        modalImage.src = imageData[gallerySwitcher.getCurrentIndex()].src;
         imageModal.classList.add('active');
     });
 
@@ -1140,7 +1241,7 @@ function initializeInlineProjectGallery(page, project) {
         }
     });
 
-    updateImage(0);
+    gallerySwitcher.update(0, 0, true);
 }
 
 function showInlineProjectPage(project, transitionLayer = null, transitionImage = null, shouldPushState = true) {

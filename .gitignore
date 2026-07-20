@@ -1,13 +1,19 @@
 .DS_Store
 
-# Local/backend runtime
-img-management-system/
+# Backend source is part of the application; keep only runtime data private.
+img-management-system/node_modules/
+img-management-system/uploads/
+img-management-system/data/
+img-management-system/.env
+img-management-system/.env.*
+!img-management-system/.env.example
 uploads/
 node_modules/
 
 # Secrets and environment files
 .env
 .env.*
+!.env.example
 
 # Logs and temporary files
 *.log
@@ -15,9 +21,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Keep the GitHub Pages release focused on the public portfolio.
+# Backend-only and legacy public entry points are not part of GitHub Pages.
 admin.html
 
-# Local image history can contain many duplicate uploads.
-# Force-add only images referenced by the current public site data.
+# The local backend owns source uploads. `npm run site:build` copies only images
+# referenced by site-data.js into the tracked docs/ release directory.
 images/**
+
+# Static build scratch directories are disposable; docs/ itself is publishable.
+.docs-build-*/

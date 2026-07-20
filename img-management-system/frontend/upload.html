@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>作品管理 — 林小肥作品展管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+        }
+        .sidebar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .nav-link {
+            transition: all 0.3s ease;
+        }
+        .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-left: 4px solid white;
+        }
+        .panel {
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            box-shadow: 0 20px 45px rgba(15, 23, 42, 0.06);
+        }
+        .project-card {
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+        }
+        .project-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 30px rgba(15, 23, 42, 0.08);
+        }
+        .project-card.active {
+            border-color: rgba(99, 102, 241, 0.55);
+            box-shadow: 0 18px 36px rgba(99, 102, 241, 0.18);
+        }
+        .form-input,
+        .form-textarea,
+        .form-file {
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .form-input:focus,
+        .form-textarea:focus,
+        .form-file:focus {
+            border-color: rgba(99, 102, 241, 0.55);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+            outline: none;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(102, 126, 234, 0.25);
+        }
+        .btn-secondary {
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+        .btn-secondary:hover {
+            background-color: #eef2ff;
+            border-color: rgba(99, 102, 241, 0.24);
+        }
+        .thumb-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+            gap: 0.875rem;
+        }
+        .thumb-card {
+            position: relative;
+            aspect-ratio: 1;
+            overflow: hidden;
+            border-radius: 0.75rem;
+            background: #e2e8f0;
+        }
+        .thumb-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .toast {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 50;
+            transform: translateY(-120%);
+            opacity: 0;
+            transition: transform 0.25s ease, opacity 0.25s ease;
+        }
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        @media (max-width: 1279px) {
+            .layout-shell {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    <link href="admin-theme.css?v=20260720-4" rel="stylesheet">
+    <script src="admin-shell.js" defer></script>
+</head>
+<body class="admin-app flex h-screen overflow-hidden">
+    <div class="sidebar w-64 flex-shrink-0 flex flex-col text-white">
+        <div class="p-6 border-b border-white/20">
+            <h1 class="text-2xl font-bold tracking-tight">林小肥作品展</h1>
+            <p class="text-white/80 text-sm mt-1">内容管理后台</p>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-1">
+            <a href="dashboard.html" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-tachometer-alt w-5 text-center"></i>
+                <span>仪表盘</span>
+            </a>
+            <a href="upload.html" class="nav-link active flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-cloud-upload-alt w-5 text-center"></i>
+                <span>上传图片</span>
+            </a>
+            <a href="image-editor.html" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-pen-to-square w-5 text-center"></i>
+                <span>图片编辑</span>
+            </a>
+            <a href="groups.html" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-folder w-5 text-center"></i>
+                <span>图片分类</span>
+            </a>
+        </nav>
+
+        <div class="p-4 border-t border-white/20">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div>
+                    <p id="userName" class="font-medium">用户</p>
+                </div>
+                <button id="logoutBtn" class="ml-auto text-white/70 hover:text-white">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <header class="bg-white shadow-sm z-10">
+            <div class="flex items-center justify-between p-4">
+                <div>
+                    <p class="text-sm uppercase tracking-wide text-indigo-500 font-semibold">Content Library</p>
+                    <h2 class="text-2xl font-semibold text-gray-900 mt-1">作品内容管理</h2>
+                </div>
+                <div class="text-sm text-gray-500">
+                    先保存后台草稿，确认后再发布到前台
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 overflow-y-auto p-6 space-y-6">
+            <section class="panel editor-panel bg-white rounded-2xl p-6">
+                <div class="editor-panel-head flex items-center justify-between mb-5">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">上传与编辑</h3>
+                        <p class="text-sm text-gray-500 mt-1">首张图片将作为首页封面与详情页主图</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label for="editorProjectSelect" class="sr-only">选择后台内容</label>
+                        <select id="editorProjectSelect" class="form-input rounded-lg px-3 py-2 text-sm min-w-[240px]" aria-label="选择后台内容"></select>
+                        <button id="newDraftBtn" type="button" class="btn-secondary px-4 py-2 rounded-lg text-sm text-gray-700">新建后台草稿</button>
+                        <button id="resetFormBtn" type="button" class="btn-secondary px-4 py-2 rounded-lg text-sm text-gray-700">恢复当前内容</button>
+                    </div>
+                </div>
+
+                <form id="projectForm" class="project-editor-form">
+                    <div class="editor-field editor-field-title">
+                        <label for="title" class="block text-sm font-medium text-gray-700 mb-2">命名</label>
+                        <input id="title" name="title" type="text" class="form-input w-full rounded-xl px-4 py-3" placeholder="输入首页与详情页展示名称" required>
+                    </div>
+
+                    <div class="project-meta-grid">
+                        <div class="editor-field">
+                            <label for="category" class="block text-sm font-medium text-gray-700 mb-2">分类名</label>
+                            <select id="category" name="category" class="form-input w-full rounded-xl px-4 py-3" required>
+                                <!-- 分类选项将通过JavaScript动态生成 -->
+                            </select>
+                        </div>
+                        <div class="editor-field">
+                            <label for="creationDate" class="block text-sm font-medium text-gray-700 mb-2">创作时间</label>
+                            <input id="creationDate" name="creationDate" type="date" class="form-input w-full rounded-xl px-4 py-3" required>
+                        </div>
+                    </div>
+
+                    <div class="editor-field editor-description">
+                        <div class="editor-label-row">
+                            <label for="description" class="block text-sm font-medium text-gray-700">作品说明</label>
+                            <span>最多 3000 字</span>
+                        </div>
+                        <textarea id="description" name="description" rows="5" maxlength="3000" class="form-textarea w-full rounded-xl px-4 py-3" placeholder="写下创作背景、灵感或想与访客分享的故事"></textarea>
+                        <p class="text-xs text-gray-500 mt-2">这段文字会作为作品介绍显示在前台详情中。</p>
+                    </div>
+
+                    <div class="editor-field editor-upload">
+                        <label for="images" class="block text-sm font-medium text-gray-700 mb-2">上传图片</label>
+                        <input id="images" name="images" type="file" accept="image/*" multiple class="form-file w-full rounded-xl px-4 py-3 bg-gray-50">
+                        <p class="text-xs text-gray-500 mt-2">支持一次上传多张图片，详情页会按上传顺序生成图集；首张图将作为封面。</p>
+                    </div>
+
+                    <div class="editor-actions flex items-center justify-between gap-3">
+                        <p id="submitStatus" class="text-sm text-gray-500"></p>
+                        <div class="flex items-center gap-3">
+                            <button id="publishCurrentBtn" type="button" class="btn-secondary px-5 py-3 rounded-xl font-medium hidden">发布更新</button>
+                            <button type="submit" class="btn-primary px-5 py-3 rounded-xl text-white font-medium">保存</button>
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+            <div class="layout-shell grid grid-cols-[minmax(0,1.2fr)_minmax(360px,0.9fr)] gap-6">
+                <section class="panel bg-white rounded-2xl p-6">
+                    <div class="flex items-center justify-between mb-5">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">项目位列表</h3>
+                            <p class="text-sm text-gray-500 mt-1">这里只显示已经发布到前台的项目</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span id="projectCount" class="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-600">0 个项目</span>
+                            <button type="button" onclick="addProject()" class="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700">
+                                <i class="fas fa-plus mr-1"></i> 添加项目
+                            </button>
+                        </div>
+                    </div>
+                    <div id="projectGrid" class="grid md:grid-cols-2 2xl:grid-cols-3 gap-4"></div>
+                </section>
+
+                <aside class="space-y-6">
+                    <section class="panel bg-white rounded-2xl p-6">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-sm uppercase tracking-wide text-indigo-500 font-semibold">当前选中</p>
+                                <h3 id="selectedTitle" class="text-xl font-semibold text-gray-900 mt-2">未选择项目</h3>
+                                <p id="selectedMeta" class="text-sm text-gray-500 mt-2"></p>
+                            </div>
+                            <span id="selectedSlot" class="px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-sm font-medium"></span>
+                        </div>
+                        <div class="mt-5 rounded-2xl overflow-hidden bg-gray-100">
+                            <img id="selectedHeroImage" src="" alt="" class="w-full h-56 object-cover">
+                        </div>
+                        <p id="selectedHint" class="text-sm text-gray-500 mt-4 leading-6"></p>
+                    </section>
+
+                    <section class="gallery-panel panel bg-white rounded-2xl p-6">
+                        <div class="gallery-panel-head">
+                            <div class="gallery-panel-title-row">
+                                <div class="gallery-panel-title">
+                                    <span>Gallery Order</span>
+                                    <h3 class="text-lg font-semibold text-gray-900">图片预览</h3>
+                                </div>
+                                <div class="gallery-panel-actions">
+                                    <span id="galleryCount" class="gallery-count">0 张</span>
+                                    <label for="galleryImages" class="gallery-add-button">
+                                        <i class="fas fa-plus" aria-hidden="true"></i><span>添加图片</span>
+                                        <input type="file" id="galleryImages" name="galleryImages" accept="image/*" multiple class="hidden">
+                                    </label>
+                                </div>
+                            </div>
+                            <p class="gallery-panel-description">拖拽图片可调整展示顺序，首张图片将作为系列封面。</p>
+                        </div>
+                        <div id="galleryGrid" class="thumb-grid"></div>
+                    </section>
+                </aside>
+            </div>
+        </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <div id="confirmModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl p-6 max-w-md w-full">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">确认操作</h3>
+            <p id="confirmMessage" class="text-gray-600 mb-6"></p>
+            <div class="flex items-center justify-end space-x-3">
+                <button id="cancelConfirmBtn" class="px-4 py-2 rounded-lg text-gray-700 font-medium border border-gray-300 hover:bg-gray-50">
+                    取消
+                </button>
+                <button id="confirmBtn" class="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700">
+                    确认
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="inputModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl p-6 max-w-md w-full">
+            <h3 id="inputTitle" class="text-lg font-semibold text-gray-800 mb-4">输入内容</h3>
+            <p id="inputMessage" class="text-gray-600 mb-4"></p>
+            <select id="inputField" class="w-full px-4 py-3 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-indigo-500"></select>
+            <div class="flex items-center justify-end space-x-3">
+                <button id="inputCancelBtn" class="px-4 py-2 rounded-lg text-gray-700 font-medium border border-gray-300 hover:bg-gray-50">
+                    取消
+                </button>
+                <button id="inputSubmitBtn" class="px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700">
+                    确认
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+
+    <script>
+        const state = {
+                projects: [],
+                categories: [],
+                selectedProjectId: null,
+                pendingFiles: [],
+                pendingMode: 'replace',
+                pendingPreviewUrls: [],
+                galleryInputFiles: []
+            };
+
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            return true;
+        }
+
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+
+        async function parseApiResponse(response) {
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                return response.json();
+            }
+
+            const text = await response.text();
+            const trimmed = text.trim();
+            const looksLikeHtml = trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html');
+
+            throw new Error(
+                looksLikeHtml
+                    ? `服务器返回了页面而不是接口数据（HTTP ${response.status}），请刷新后台或重新登录后再试`
+                    : trimmed || `请求失败（HTTP ${response.status}）`
+            );
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+
+        function escapeAttribute(value) {
+            return escapeHtml(value).replace(/`/g, '&#96;');
+        }
+
+        function assetUrl(src) {
+            return '/portfolio-assets/' + String(src || '')
+                .replace(/^[/\\]+/, '')
+                .split('/')
+                .map(encodeURIComponent)
+                .join('/');
+        }
+
+        function getSelectedProject() {
+            return state.projects.find(project => project.id === state.selectedProjectId) || null;
+        }
+
+        function getPublishedProjects() {
+            return state.projects.filter(project => project.published !== false);
+        }
+
+        function isProjectPublished(project) {
+            return Boolean(project) && project.published !== false;
+        }
+
+        function getProjectSlotNumber(projectId) {
+            const index = getPublishedProjects().findIndex(project => Number(project.id) === Number(projectId));
+            return index === -1 ? '' : index + 1;
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.dataset.type = type;
+            toast.className = 'toast show';
+            clearTimeout(Number(toast.dataset.hideTimer || 0));
+            const hideTimer = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2200);
+            toast.dataset.hideTimer = String(hideTimer);
+        }
+
+        function showConfirmDialog(message, onConfirm) {
+            const modal = document.getElementById('confirmModal');
+            const confirmMessage = document.getElementById('confirmMessage');
+            const confirmBtn = document.getElementById('confirmBtn');
+            const cancelBtn = document.getElementById('cancelConfirmBtn');
+
+            confirmMessage.textContent = message;
+            modal.classList.remove('hidden');
+
+            const confirmHandler = () => {
+                onConfirm();
+                modal.classList.add('hidden');
+                cleanup();
+            };
+
+            const cancelHandler = () => {
+                modal.classList.add('hidden');
+                cleanup();
+            };
+
+            const cleanup = () => {
+                confirmBtn.removeEventListener('click', confirmHandler);
+                cancelBtn.removeEventListener('click', cancelHandler);
+            };
+
+            confirmBtn.addEventListener('click', confirmHandler);
+            cancelBtn.addEventListener('click', cancelHandler);
+        }
+
+
+
+        function revokePreviewUrls() {
+            state.pendingPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+            state.pendingPreviewUrls = [];
+        }
+
+        function renderProjectGrid() {
+            const projectGrid = document.getElementById('projectGrid');
+            const projectCount = document.getElementById('projectCount');
+            const publishedProjects = getPublishedProjects();
+            projectCount.textContent = `${publishedProjects.length} 个项目`;
+
+            projectGrid.innerHTML = publishedProjects.length ? publishedProjects.map((project, index) => `
+                <div class="project-card ${project.id === state.selectedProjectId ? 'active' : ''} rounded-2xl overflow-hidden text-left bg-white relative" data-project-id="${project.id}">
+                    <div class="cursor-move drag-handle absolute top-2 left-2 w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center hover:bg-blue-600 z-10 cursor-grab" draggable="true">
+                        <i class="fas fa-arrows-alt"></i>
+                    </div>
+                    <button type="button" class="project-select-btn w-full h-full" data-project-id="${project.id}">
+                        <div class="aspect-w-4 aspect-h-3 bg-gray-100">
+                            <img src="${escapeAttribute(assetUrl(project.heroImage))}" alt="${escapeAttribute(project.title)}" class="w-full h-40 object-cover">
+                        </div>
+                        <div class="p-4">
+                            <div class="flex items-center justify-between gap-3">
+                                <h4 class="text-base font-semibold text-gray-900">${escapeHtml(project.title)}</h4>
+                                <span class="text-xs font-medium text-indigo-500 bg-indigo-50 px-2 py-1 rounded-full">#${escapeHtml(index + 1)}</span>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-2">${escapeHtml(project.category)} / ${escapeHtml(project.year)}</p>
+                            ${project.hasUnpublishedChanges ? '<p class="text-xs text-amber-600 mt-2">有尚未发布的修改</p>' : ''}
+                        </div>
+                    </button>
+                    <button type="button" class="absolute top-2 right-2 w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center hover:bg-gray-700 z-10 delete-btn" data-delete-id="${project.id}" aria-label="从前台撤下">
+                        <i class="fas fa-eye-slash"></i>
+                    </button>
+                </div>
+            `).join('') : '<p class="col-span-full py-10 text-center text-gray-500">前台还没有项目，请先保存后台内容，再点击“添加项目”。</p>';
+
+            // 项目选择功能
+            document.querySelectorAll('.project-select-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    state.selectedProjectId = Number(button.dataset.projectId);
+                    state.pendingFiles = [];
+                    state.pendingMode = 'replace';
+                    state.galleryInputFiles = [];
+                    revokePreviewUrls();
+                    document.getElementById('images').value = '';
+                    document.getElementById('galleryImages').value = '';
+                    fillForm();
+                    renderEditorProjectOptions();
+                    renderCategoryOptions();
+                    renderProjectGrid();
+                    renderSelectedProject();
+                    renderGallery();
+                });
+            });
+
+            // 删除按钮功能
+            document.querySelectorAll('.delete-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const projectId = Number(button.dataset.deleteId);
+                    deleteProject(projectId);
+                });
+            });
+
+            // 添加拖拽排序功能
+            let draggedElement = null;
+            const dragHandles = projectGrid.querySelectorAll('.drag-handle');
+
+            dragHandles.forEach(handle => {
+                handle.addEventListener('dragstart', (e) => {
+                    e.stopPropagation();
+                    draggedElement = handle.closest('.project-card');
+                    const dragBox = draggedElement.getBoundingClientRect();
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', draggedElement.dataset.projectId);
+                    e.dataTransfer.setDragImage(
+                        draggedElement,
+                        e.clientX - dragBox.left,
+                        e.clientY - dragBox.top
+                    );
+                    draggedElement.classList.add('dragging');
+                    draggedElement.style.opacity = '0.5';
+                });
+
+                handle.addEventListener('dragend', (e) => {
+                    e.stopPropagation();
+                    if (draggedElement) {
+                        draggedElement.classList.remove('dragging');
+                        draggedElement.style.opacity = '1';
+                    }
+                    draggedElement = null;
+                });
+            });
+
+            projectGrid.ondragover = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+
+                if (!draggedElement) {
+                    return;
+                }
+
+                const afterElement = getProjectDragAfterElement(projectGrid, e.clientX, e.clientY);
+                if (afterElement === null) {
+                    projectGrid.appendChild(draggedElement);
+                } else {
+                    projectGrid.insertBefore(draggedElement, afterElement);
+                }
+            };
+
+            projectGrid.ondrop = async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (!draggedElement) {
+                    return;
+                }
+
+                draggedElement.classList.remove('dragging');
+                draggedElement.style.opacity = '1';
+
+                const orderedIds = Array.from(projectGrid.querySelectorAll('.project-card'))
+                    .map(card => Number(card.dataset.projectId))
+                    .filter(Number.isFinite);
+                const projectMap = new Map(state.projects.map(project => [project.id, project]));
+                const orderedPublished = orderedIds.map(id => projectMap.get(id)).filter(Boolean);
+                const drafts = state.projects.filter(project => !isProjectPublished(project));
+                state.projects = orderedPublished.concat(drafts);
+                renderProjectGrid();
+                renderSelectedProject();
+
+                try {
+                    const response = await fetch('/api/site/projects/order', {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${getToken()}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ projectIds: orderedIds })
+                    });
+
+                    if (response.ok) {
+                        await loadProjects();
+                        renderProjectGrid();
+                        showToast('项目顺序已更新');
+                    } else {
+                        const data = await response.json();
+                        await loadProjects();
+                        renderProjectGrid();
+                        showToast(data.message || '更新顺序失败', 'error');
+                    }
+                } catch (error) {
+                    console.error('更新项目顺序失败:', error);
+                    await loadProjects();
+                    renderProjectGrid();
+                    showToast('更新项目顺序失败', 'error');
+                } finally {
+                    draggedElement = null;
+                }
+            };
+
+            function getProjectDragAfterElement(container, x, y) {
+                const cards = [...container.querySelectorAll('.project-card:not(.dragging)')];
+                if (cards.length === 0) {
+                    return null;
+                }
+
+                const rows = cards.reduce((groups, card) => {
+                    const box = card.getBoundingClientRect();
+                    const centerY = box.top + box.height / 2;
+                    const existingRow = groups.find(row => Math.abs(row.centerY - centerY) < box.height / 2);
+                    const item = {
+                        card,
+                        box,
+                        centerX: box.left + box.width / 2,
+                        centerY
+                    };
+
+                    if (existingRow) {
+                        existingRow.items.push(item);
+                        existingRow.centerY = existingRow.items.reduce((sum, rowItem) => sum + rowItem.centerY, 0) / existingRow.items.length;
+                    } else {
+                        groups.push({ centerY, items: [item] });
+                    }
+
+                    return groups;
+                }, []);
+
+                const targetRow = rows.reduce((closest, row) => {
+                    const distance = Math.abs(y - row.centerY);
+                    return distance < closest.distance ? { row, distance } : closest;
+                }, { row: rows[0], distance: Infinity }).row;
+
+                const rowItems = targetRow.items.sort((a, b) => a.box.left - b.box.left);
+                const beforeItem = rowItems.find(item => x < item.centerX);
+
+                if (beforeItem) {
+                    return beforeItem.card;
+                }
+
+                return rowItems[rowItems.length - 1].card.nextElementSibling;
+            }
+        }
+
+        function renderSelectedProject() {
+            const project = getSelectedProject();
+            if (!project) return;
+            const slotNumber = getProjectSlotNumber(project.id);
+
+            document.getElementById('selectedSlot').textContent = isProjectPublished(project) ? `项目位 ${slotNumber}` : '后台草稿';
+            document.getElementById('selectedTitle').textContent = project.title;
+            document.getElementById('selectedMeta').textContent = `${project.category} / ${project.year}`;
+            document.getElementById('selectedHeroImage').src = assetUrl(project.heroImage);
+            document.getElementById('selectedHeroImage').alt = project.title;
+            document.getElementById('selectedHint').textContent = isProjectPublished(project)
+                ? (project.hasUnpublishedChanges
+                    ? '修改已保存在后台，点击“发布更新”后前台才会变化。'
+                    : '当前内容已发布。继续编辑并保存时，前台会保持现状，直到你发布更新。')
+                : '这是后台草稿。保存完成后，可通过“添加项目”将它加入前台项目位。';
+            document.getElementById('publishCurrentBtn').classList.toggle(
+                'hidden',
+                !isProjectPublished(project) || !project.hasUnpublishedChanges
+            );
+        }
+
+        function fillForm() {
+            const project = getSelectedProject();
+            if (!project) return;
+
+            document.getElementById('title').value = project.title || '';
+            document.getElementById('category').value = project.category || '';
+            document.getElementById('description').value = project.description || '';
+            document.getElementById('creationDate').value = project.creationDate || '';
+            document.getElementById('submitStatus').textContent = '';
+        }
+
+        function renderGallery() {
+            const project = getSelectedProject();
+            const galleryGrid = document.getElementById('galleryGrid');
+            const galleryCount = document.getElementById('galleryCount');
+
+            if (!project) {
+                galleryGrid.innerHTML = '';
+                galleryCount.textContent = '0 张';
+                return;
+            }
+
+            const existingItems = (project.gallery || []).map((src, index) => ({
+                type: 'existing',
+                src: assetUrl(src),
+                label: project.imageTitles && project.imageTitles[index] ? project.imageTitles[index] : `图片 ${index + 1}`,
+                index: index
+            }));
+            const pendingItems = state.pendingFiles.map((file, index) => ({
+                    type: 'pending',
+                    src: state.pendingPreviewUrls[index],
+                    label: file.name,
+                    index: index
+                }));
+            const items = state.pendingFiles.length > 0 && state.pendingMode !== 'append'
+                ? pendingItems
+                : existingItems.concat(pendingItems);
+
+            galleryCount.textContent = `${items.length} 张`;
+            galleryGrid.innerHTML = items.map((item, index) => {
+                const isCover = index === 0; // 首图默认为封面
+                return `
+                <div class="thumb-card relative ${isCover ? 'is-cover' : ''}" draggable="true" data-type="${item.type}" data-index="${item.index}">
+                    <img src="${escapeAttribute(item.src)}" alt="${escapeAttribute(item.label)}" class="w-full h-full object-cover">
+                    <span class="thumb-order" aria-label="排序 ${index + 1}">${String(index + 1).padStart(2, '0')}</span>
+                    <div class="drag-hint absolute inset-0 flex items-center justify-center bg-black/50 text-white text-xs rounded-lg opacity-0 transition-opacity pointer-events-none">
+                        <span><i class="fas fa-arrows-alt"></i> 拖拽排序</span>
+                    </div>
+                    <div class="thumb-caption">
+                        <span>${escapeHtml(item.label)}</span>${isCover ? '<em>封面</em>' : ''}
+                    </div>
+                    <button class="thumb-delete-button" type="button" aria-label="删除第 ${index + 1} 张图片" onclick="deleteImage('${item.type}', ${item.index})"><i class="fas fa-trash" aria-hidden="true"></i></button>
+                </div>
+            `;
+            }).join('');
+
+            // 添加鼠标悬停事件来显示拖拽提示
+            const cards = galleryGrid.querySelectorAll('.thumb-card');
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', () => {
+                    const hint = card.querySelector('.drag-hint');
+                    if (hint) hint.style.opacity = '1';
+                });
+                card.addEventListener('mouseleave', () => {
+                    const hint = card.querySelector('.drag-hint');
+                    if (hint) hint.style.opacity = '0';
+                });
+            });
+        }
+
+        function deleteImage(typeOrIndex, maybeIndex) {
+            showConfirmDialog('确定要删除这张图片吗？', () => {
+                const project = getSelectedProject();
+                const type = typeof typeOrIndex === 'string'
+                    ? typeOrIndex
+                    : (state.pendingFiles.length > 0 && state.pendingMode !== 'append' ? 'pending' : 'existing');
+                const index = typeof typeOrIndex === 'string' ? maybeIndex : typeOrIndex;
+                const currentGalleryCount = project?.gallery?.length || 0;
+
+                if (type === 'pending') {
+                    if (index >= 0 && index < state.pendingFiles.length) {
+                        URL.revokeObjectURL(state.pendingPreviewUrls[index]);
+                        state.pendingFiles.splice(index, 1);
+                        state.pendingPreviewUrls.splice(index, 1);
+                        if (state.galleryInputFiles.length > index) {
+                            state.galleryInputFiles.splice(index, 1);
+                        }
+                        if (state.pendingFiles.length === 0) {
+                            state.pendingMode = 'replace';
+                            document.getElementById('galleryImages').value = '';
+                            document.getElementById('images').value = '';
+                        }
+                        showToast('图片已删除');
+                    } else {
+                        showToast('删除失败：索引无效', 'error');
+                    }
+                } else if (type === 'existing' && currentGalleryCount > 0) {
+                    if (index >= 0 && index < currentGalleryCount) {
+                        project.gallery.splice(index, 1);
+                        if (project.imageTitles) {
+                            project.imageTitles.splice(index, 1);
+                        }
+                        if (project.imageDescriptions) {
+                            project.imageDescriptions.splice(index, 1);
+                        }
+                        if (project.imageAlignments) {
+                            project.imageAlignments.splice(index, 1);
+                        }
+                        showToast('图片已删除');
+                    } else {
+                        showToast('删除失败：索引无效', 'error');
+                    }
+                }
+                renderGallery();
+            });
+        }
+
+        function deleteProject(projectId) {
+            showConfirmDialog(`确定将项目位 #${getProjectSlotNumber(projectId)} 从前台撤下吗？后台内容会继续保留。`, async () => {
+                try {
+                    const response = await fetch(`/api/site/projects/${projectId}/unpublish`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${getToken()}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        await loadProjects();
+                        renderEditorProjectOptions();
+                        renderSelectedProject();
+                        renderProjectGrid();
+                        showToast(data.message || '项目已从前台撤下');
+                    } else {
+                        const data = await response.json();
+                        showToast(data.message || '删除失败', 'error');
+                    }
+                } catch (error) {
+                    console.error('撤下项目失败:', error);
+                    showToast('撤下项目失败', 'error');
+                }
+            });
+        }
+
+        function addProject() {
+            const candidates = state.projects.filter(project => !isProjectPublished(project) && (project.gallery || []).length > 0);
+            if (!candidates.length) {
+                showToast('没有可发布的后台内容，请先新建草稿、上传图片并保存', 'error');
+                return;
+            }
+            showChoiceDialog('添加项目', '选择一个尚未展示的分类，将其加入前台项目位。', candidates.map(project => ({
+                value: project.id,
+                label: `${project.category} · ${project.title}`
+            })), projectId => publishById(Number(projectId)));
+        }
+
+        function showChoiceDialog(title, message, options, onSubmit) {
+            const modal = document.getElementById('inputModal');
+            const inputTitle = document.getElementById('inputTitle');
+            const inputMessage = document.getElementById('inputMessage');
+            const inputField = document.getElementById('inputField');
+            const submitBtn = document.getElementById('inputSubmitBtn');
+            const cancelBtn = document.getElementById('inputCancelBtn');
+
+            inputTitle.textContent = title;
+            inputMessage.textContent = message;
+            inputField.innerHTML = options.map(option => `<option value="${escapeAttribute(option.value)}">${escapeHtml(option.label)}</option>`).join('');
+            modal.classList.remove('hidden');
+
+            const submitHandler = () => {
+                onSubmit(inputField.value);
+                modal.classList.add('hidden');
+                cleanup();
+            };
+
+            const cancelHandler = () => {
+                modal.classList.add('hidden');
+                cleanup();
+            };
+
+            const keyPressHandler = (e) => {
+                if (e.key === 'Enter') {
+                    onSubmit(inputField.value);
+                    modal.classList.add('hidden');
+                    cleanup();
+                }
+            };
+
+            const cleanup = () => {
+                submitBtn.removeEventListener('click', submitHandler);
+                cancelBtn.removeEventListener('click', cancelHandler);
+                inputField.removeEventListener('keypress', keyPressHandler);
+            };
+
+            submitBtn.addEventListener('click', submitHandler);
+            cancelBtn.addEventListener('click', cancelHandler);
+            inputField.addEventListener('keypress', keyPressHandler);
+            inputField.focus();
+        }
+
+        function renderEditorProjectOptions() {
+            const select = document.getElementById('editorProjectSelect');
+            select.innerHTML = state.projects.map(project => {
+                const status = isProjectPublished(project)
+                    ? (project.hasUnpublishedChanges ? '已发布 · 待更新' : '已发布')
+                    : '后台草稿';
+                return `<option value="${escapeAttribute(project.id)}">${escapeHtml(project.category)} · ${escapeHtml(project.title)}（${status}）</option>`;
+            }).join('');
+            select.disabled = state.projects.length === 0;
+            if (state.selectedProjectId) select.value = String(state.selectedProjectId);
+        }
+
+        function renderCategoryOptions() {
+            const selected = getSelectedProject();
+            const categorySelect = document.getElementById('category');
+            categorySelect.innerHTML = state.categories.map(category => {
+                const usedByOther = state.projects.some(project =>
+                    project.category === category.name && project.id !== selected?.id
+                );
+                return `<option value="${escapeAttribute(category.name)}" ${usedByOther ? 'disabled' : ''}>${escapeHtml(category.name)}${usedByOther ? '（已有项目）' : ''}</option>`;
+            }).join('');
+            if (selected) categorySelect.value = selected.category || '';
+        }
+
+        async function publishById(projectId) {
+            try {
+                const response = await fetch(`/api/site/projects/${projectId}/publish`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const data = await parseApiResponse(response);
+                if (!response.ok) throw new Error(data.message || '发布失败');
+                await loadProjects();
+                state.selectedProjectId = projectId;
+                renderEditorProjectOptions();
+                renderCategoryOptions();
+                renderProjectGrid();
+                renderSelectedProject();
+                fillForm();
+                renderGallery();
+                showToast(data.message || '项目已发布到前台');
+            } catch (error) {
+                showToast(error.message || '发布失败', 'error');
+            }
+        }
+
+        function newDraft() {
+            const unusedCategories = state.categories.filter(category =>
+                !state.projects.some(project => project.category === category.name)
+            );
+            if (!unusedCategories.length) {
+                showToast('没有未使用的分类，请先在“图片分类”中新建分类', 'error');
+                return;
+            }
+            showChoiceDialog('新建后台草稿', '选择一个尚未创建内容的分类。草稿不会出现在前台。', unusedCategories.map(category => ({
+                value: category.name,
+                label: category.name
+            })), async category => {
+                try {
+                    const response = await fetch('/api/site/projects', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${getToken()}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ title: category, category })
+                    });
+                    const data = await parseApiResponse(response);
+                    if (!response.ok) throw new Error(data.message || '创建草稿失败');
+                    await loadProjects();
+                    state.selectedProjectId = data.project.id;
+                    renderEditorProjectOptions();
+                    renderCategoryOptions();
+                    renderProjectGrid();
+                    renderSelectedProject();
+                    fillForm();
+                    renderGallery();
+                    showToast(data.message || '后台草稿已创建');
+                } catch (error) {
+                    showToast(error.message || '创建草稿失败', 'error');
+                }
+            });
+        }
+
+        // 加载分类列表
+        async function loadCategories() {
+            try {
+                const response = await fetch('/api/site/categories', {
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`
+                    }
+                });
+
+                if (response.ok) {
+                    state.categories = await response.json();
+                    renderCategoryOptions();
+                }
+            } catch (error) {
+                console.error('加载分类失败:', error);
+            }
+        }
+
+        async function loadProjects() {
+            const response = await fetch('/api/site/projects', {
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('加载项目失败');
+            }
+
+            state.projects = await response.json();
+            if (!state.projects.some(project => project.id === state.selectedProjectId)) {
+                state.selectedProjectId = getPublishedProjects()[0]?.id || state.projects[0]?.id || null;
+            }
+        }
+
+        async function submitProject(event) {
+            event.preventDefault();
+
+            const project = getSelectedProject();
+            if (!project) return;
+
+            const formData = new FormData();
+            formData.append('title', document.getElementById('title').value.trim());
+            formData.append('category', document.getElementById('category').value.trim());
+            formData.append('description', document.getElementById('description').value.trim());
+            formData.append('creationDate', document.getElementById('creationDate').value);
+            // 首图默认为封面
+            formData.append('coverImage', project.gallery[0] || '');
+            // 确保图片标题数组长度与 gallery 一致
+            if (project.imageTitles && project.imageTitles.length < project.gallery.length) {
+                while (project.imageTitles.length < project.gallery.length) {
+                    project.imageTitles.push('');
+                }
+            }
+
+            if (project.imageTitles) {
+                formData.append('imageTitles', JSON.stringify(project.imageTitles));
+            }
+            if (project.imageDescriptions && project.imageDescriptions.length < project.gallery.length) {
+                while (project.imageDescriptions.length < project.gallery.length) {
+                    project.imageDescriptions.push('');
+                }
+            }
+            if (project.imageDescriptions) {
+                formData.append('imageDescriptions', JSON.stringify(project.imageDescriptions));
+            }
+            if (project.imageAlignments && project.imageAlignments.length < project.gallery.length) {
+                const defaultAlignments = ['left', 'right'];
+                while (project.imageAlignments.length < project.gallery.length) {
+                    project.imageAlignments.push(defaultAlignments[project.imageAlignments.length % defaultAlignments.length]);
+                }
+            }
+            if (project.imageAlignments) {
+                formData.append('imageAlignments', JSON.stringify(project.imageAlignments));
+            }
+
+            // 检查是否需要保存新的图片顺序
+            const hasNewFiles = state.pendingFiles.length > 0;
+
+            // 发送当前的图库状态，无论是待上传文件还是已上传文件
+            if (hasNewFiles) {
+                formData.append('gallery', JSON.stringify(state.pendingMode === 'append' ? (project.gallery || []) : []));
+            } else if (project.gallery && project.gallery.length > 0) {
+                // 没有待上传文件，发送当前的 gallery
+                const galleryOrder = Array.from({ length: project.gallery.length }, (_, i) => i);
+                formData.append('galleryOrder', JSON.stringify(galleryOrder));
+                formData.append('gallery', JSON.stringify(project.gallery));
+            }
+
+            const submitStatus = document.getElementById('submitStatus');
+
+            if (hasNewFiles) {
+                state.pendingFiles.forEach(file => {
+                    formData.append('images', file);
+                });
+            }
+
+            submitStatus.textContent = '正在保存到后台...';
+
+            const response = await fetch(`/api/site/projects/${project.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`
+                },
+                body: formData
+            });
+
+            const data = await parseApiResponse(response);
+            if (!response.ok) {
+                throw new Error(data.message || '保存失败');
+            }
+
+            state.projects = state.projects.map(item => item.id === data.project.id ? data.project : item);
+            state.pendingFiles = [];
+            state.pendingMode = 'replace';
+            state.galleryInputFiles = [];
+            revokePreviewUrls();
+            document.getElementById('images').value = '';
+            document.getElementById('galleryImages').value = '';
+            renderProjectGrid();
+            renderEditorProjectOptions();
+            renderCategoryOptions();
+            renderSelectedProject();
+            fillForm();
+            renderGallery();
+            submitStatus.textContent = isProjectPublished(data.project) ? '已保存，尚未发布更新' : '已保存为后台草稿';
+            showToast(data.message || '已保存');
+        }
+
+        async function init() {
+            if (!checkAuth()) return;
+
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (user) {
+                document.getElementById('userName').textContent = user.name;
+            }
+
+            document.getElementById('logoutBtn').addEventListener('click', () => {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = 'login.html';
+            });
+
+            document.getElementById('editorProjectSelect').addEventListener('change', event => {
+                state.selectedProjectId = Number(event.target.value);
+                state.pendingFiles = [];
+                state.pendingMode = 'replace';
+                state.galleryInputFiles = [];
+                revokePreviewUrls();
+                document.getElementById('images').value = '';
+                document.getElementById('galleryImages').value = '';
+                renderCategoryOptions();
+                fillForm();
+                renderProjectGrid();
+                renderSelectedProject();
+                renderGallery();
+            });
+            document.getElementById('newDraftBtn').addEventListener('click', newDraft);
+            document.getElementById('publishCurrentBtn').addEventListener('click', () => {
+                const project = getSelectedProject();
+                if (project) publishById(project.id);
+            });
+
+            document.getElementById('images').addEventListener('change', event => {
+                const input = event.target;
+                const newFiles = Array.from(input.files || []);
+
+                if (newFiles.length === 0) {
+                    return;
+                }
+
+                const currentCount = state.pendingFiles.length;
+                const totalAfterAdd = currentCount + newFiles.length;
+
+                if (totalAfterAdd > 20) {
+                    showToast(`最多只能上传20个文件（当前${currentCount}张，选择了${newFiles.length}张）`, 'error');
+                    return;
+                }
+
+                const allFiles = state.pendingFiles.concat(newFiles);
+
+                revokePreviewUrls();
+                state.pendingFiles = allFiles;
+                state.pendingMode = 'replace';
+                state.galleryInputFiles = [];
+                document.getElementById('galleryImages').value = '';
+                state.pendingPreviewUrls = state.pendingFiles.map(file => URL.createObjectURL(file));
+                renderGallery();
+                showToast(`已添加${newFiles.length}张图片（当前共${state.pendingFiles.length}张）`);
+            });
+
+            document.getElementById('galleryImages').addEventListener('change', event => {
+                const input = event.target;
+                const newFiles = Array.from(input.files || []);
+
+                if (newFiles.length === 0) {
+                    return;
+                }
+
+                const existingKeys = new Set(
+                    state.galleryInputFiles.map(f => `${f.name}-${f.size}`)
+                );
+
+                const uniqueNewFiles = newFiles.filter(f => {
+                    const key = `${f.name}-${f.size}`;
+                    if (existingKeys.has(key)) {
+                        return false;
+                    }
+                    existingKeys.add(key);
+                    return true;
+                });
+
+                if (uniqueNewFiles.length === 0) {
+                    showToast(`这些图片已经添加过了`, 'error');
+                    return;
+                }
+
+                state.galleryInputFiles = state.galleryInputFiles.concat(uniqueNewFiles);
+
+                const totalAfterAdd = state.galleryInputFiles.length;
+                if (totalAfterAdd > 20) {
+                    showToast(`最多只能上传20个文件`, 'error');
+                    state.galleryInputFiles = state.galleryInputFiles.slice(0, 20);
+                    return;
+                }
+
+                revokePreviewUrls();
+                state.pendingFiles = [...state.galleryInputFiles];
+                state.pendingMode = 'append';
+                state.pendingPreviewUrls = state.pendingFiles.map(file => URL.createObjectURL(file));
+                renderGallery();
+                showToast(`已添加${uniqueNewFiles.length}张图片（当前共${state.pendingFiles.length}张）`);
+            });
+
+            document.getElementById('projectForm').addEventListener('submit', async event => {
+                try {
+                    await submitProject(event);
+                } catch (error) {
+                    document.getElementById('submitStatus').textContent = '';
+                    showToast(error.message || '保存失败', 'error');
+                }
+            });
+
+            document.getElementById('resetFormBtn').addEventListener('click', () => {
+                state.pendingFiles = [];
+                state.pendingMode = 'replace';
+                state.galleryInputFiles = [];
+                revokePreviewUrls();
+                document.getElementById('images').value = '';
+                document.getElementById('galleryImages').value = '';
+                fillForm();
+                renderGallery();
+            });
+
+            // 拖拽排序功能
+            const galleryGrid = document.getElementById('galleryGrid');
+            let draggedIndex = null;
+            let draggedElement = null;
+
+            galleryGrid.addEventListener('dragstart', (e) => {
+                const card = e.target.closest('.thumb-card');
+                if (card) {
+                    draggedIndex = {
+                        type: card.dataset.type,
+                        index: Number(card.dataset.index)
+                    };
+                    draggedElement = card;
+                    card.classList.add('opacity-50');
+                }
+            });
+
+            galleryGrid.addEventListener('dragend', (e) => {
+                if (draggedElement) {
+                    draggedElement.classList.remove('opacity-50');
+                    draggedElement = null;
+                    draggedIndex = null;
+                }
+            });
+
+            galleryGrid.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const afterElement = getDragAfterElement(galleryGrid, e.clientX, e.clientY);
+                const draggable = document.querySelector('.thumb-card.opacity-50');
+                if (draggable) {
+                    if (afterElement === null) {
+                        galleryGrid.appendChild(draggable);
+                    } else {
+                        galleryGrid.insertBefore(draggable, afterElement);
+                    }
+                }
+            });
+
+            galleryGrid.addEventListener('drop', (e) => {
+                e.preventDefault();
+                if (draggedIndex === null) return;
+
+                const project = getSelectedProject();
+                if (!project) return;
+
+                // 获取新的顺序
+                const cards = galleryGrid.querySelectorAll('.thumb-card');
+                const newOrder = Array.from(cards).map(card => ({
+                    type: card.dataset.type,
+                    index: Number(card.dataset.index)
+                }));
+
+                if (state.pendingFiles.length > 0 && state.pendingMode === 'append') {
+                    const existingOrder = newOrder.filter(item => item.type === 'existing');
+                    const pendingOrder = newOrder.filter(item => item.type === 'pending');
+                    const currentTitles = project.imageTitles || [];
+                    const currentDescriptions = project.imageDescriptions || [];
+                    const currentAlignments = project.imageAlignments || [];
+
+                    project.gallery = existingOrder
+                        .map(item => project.gallery[item.index])
+                        .filter(Boolean);
+                    project.imageTitles = existingOrder.map(item => currentTitles[item.index] || '');
+                    project.imageDescriptions = existingOrder.map(item => currentDescriptions[item.index] || '');
+                    project.imageAlignments = existingOrder.map((item, index) => {
+                        const alignment = currentAlignments[item.index];
+                        return ['left', 'right'].includes(alignment) ? alignment : ['left', 'right'][index % 2];
+                    });
+
+                    const newPendingFiles = [];
+                    const newPendingPreviewUrls = [];
+                    pendingOrder.forEach(item => {
+                        if (state.pendingFiles[item.index]) {
+                            newPendingFiles.push(state.pendingFiles[item.index]);
+                            newPendingPreviewUrls.push(state.pendingPreviewUrls[item.index]);
+                        }
+                    });
+                    state.pendingFiles = newPendingFiles;
+                    state.galleryInputFiles = [...newPendingFiles];
+                    state.pendingPreviewUrls = newPendingPreviewUrls;
+                } else if (state.pendingFiles.length > 0) {
+                    // 重新排序 pendingFiles
+                    const newPendingFiles = [];
+                    const newPendingPreviewUrls = [];
+                    newOrder.forEach(item => {
+                        if (state.pendingFiles[item.index]) {
+                            newPendingFiles.push(state.pendingFiles[item.index]);
+                            newPendingPreviewUrls.push(state.pendingPreviewUrls[item.index]);
+                        }
+                    });
+                    state.pendingFiles = newPendingFiles;
+                    state.pendingPreviewUrls = newPendingPreviewUrls;
+                } else {
+                    // 重新排序 gallery
+                    const currentTitles = project.imageTitles || [];
+                    const currentDescriptions = project.imageDescriptions || [];
+                    const currentAlignments = project.imageAlignments || [];
+                    const newGallery = newOrder.map(item => project.gallery[item.index]).filter(Boolean);
+                    const newImageTitles = newOrder.map(item => currentTitles[item.index] || '');
+                    const newImageDescriptions = newOrder.map(item => currentDescriptions[item.index] || '');
+                    const newImageAlignments = newOrder.map((item, index) => {
+                        const alignment = currentAlignments[item.index];
+                        return ['left', 'right'].includes(alignment) ? alignment : ['left', 'right'][index % 2];
+                    });
+                    project.gallery = newGallery;
+                    project.imageTitles = newImageTitles;
+                    project.imageDescriptions = newImageDescriptions;
+                    project.imageAlignments = newImageAlignments;
+                    // 更新封面索引
+                    if (project.coverImage) {
+                        project.coverImage = project.gallery[0];
+                    }
+                }
+
+                renderGallery();
+                showToast('已更新图片顺序');
+            });
+
+            function getDragAfterElement(container, x, y) {
+                const cards = [...container.querySelectorAll('.thumb-card:not(.opacity-50)')];
+                if (cards.length === 0) {
+                    return null;
+                }
+
+                const rows = cards.reduce((groups, card) => {
+                    const box = card.getBoundingClientRect();
+                    const centerY = box.top + box.height / 2;
+                    const existingRow = groups.find(row => Math.abs(row.centerY - centerY) < box.height / 2);
+
+                    const item = {
+                        card,
+                        box,
+                        centerX: box.left + box.width / 2,
+                        centerY
+                    };
+
+                    if (existingRow) {
+                        existingRow.items.push(item);
+                        existingRow.centerY = existingRow.items.reduce((sum, rowItem) => sum + rowItem.centerY, 0) / existingRow.items.length;
+                    } else {
+                        groups.push({ centerY, items: [item] });
+                    }
+
+                    return groups;
+                }, []);
+
+                const targetRow = rows.reduce((closest, row) => {
+                    const distance = Math.abs(y - row.centerY);
+                    return distance < closest.distance ? { row, distance } : closest;
+                }, { row: rows[0], distance: Infinity }).row;
+
+                const rowItems = targetRow.items.sort((a, b) => a.box.left - b.box.left);
+                const beforeItem = rowItems.find(item => x < item.centerX);
+
+                if (beforeItem) {
+                    return beforeItem.card;
+                }
+
+                let nextElement = rowItems[rowItems.length - 1].card.nextElementSibling;
+                while (nextElement && nextElement.classList.contains('opacity-50')) {
+                    nextElement = nextElement.nextElementSibling;
+                }
+
+                return nextElement;
+            }
+
+            try {
+                await loadProjects();
+                await loadCategories();
+                renderEditorProjectOptions();
+                renderProjectGrid();
+                renderSelectedProject();
+                fillForm();
+                renderGallery();
+            } catch (error) {
+                showToast('加载项目失败，请刷新重试', 'error');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

@@ -1,83 +1,30 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contact | XiaofArt</title>
-    <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="description" content="联系林小肥作品展，讨论合作、展览与创作。"><meta name="theme-color" content="#0a0a0a">
+    <title>联系 — 林小肥作品展</title><link rel="stylesheet" href="gallery.css">
 </head>
-<body>
-    <div class="cursor" id="cursor"></div>
-    <div class="cursor-follower" id="cursorFollower"></div>
-    
-    <nav class="nav">
-        <a href="index.html" class="nav-logo">XiaofArt</a>
-        <div class="nav-right">
-            <ul class="nav-links">
-                <li><a href="index.html">PROJECTS</a></li>
-                <li><a href="about.html">ABOUT</a></li>
-                <li><a href="contact.html" class="active">CONTACT</a></li>
-            </ul>
-            <div class="theme-toggle" id="themeToggle" title="切换主题"></div>
+<body class="site-page">
+    <header class="site-header exhibition-header" id="siteHeader">
+        <a href="index.html" class="brand" data-skip-entry><span class="brand-mark"></span><span>林小肥作品展</span></a>
+        <div class="exhibition-header-actions">
+            <nav class="site-nav" aria-label="主要导航"><a href="index.html" data-skip-entry>首页</a><a href="about.html">作者介绍</a></nav>
+            <button class="theme-button" id="themeToggle" type="button" aria-label="切换主题"><span></span></button>
         </div>
-    </nav>
-
-    <main class="contact-section">
-        <div class="contact-container">
-            <div class="contact-content">
-                <h1 class="contact-title">Get in Touch</h1>
-                <p class="contact-subtitle">Have a project in mind or just want to say hello? Feel free to reach out.</p>
-                
-                <div class="contact-info">
-                    <div class="contact-item">
-                        <h3 class="contact-label">Email</h3>
-                        <a href="mailto:hello@xiaofart.com" class="contact-value">hello@xiaofart.com</a>
-                    </div>
-                    <div class="contact-item">
-                        <h3 class="contact-label">Phone</h3>
-                        <a href="tel:+861234567890" class="contact-value">+86 123 4567 890</a>
-                    </div>
-                    <div class="contact-item">
-                        <h3 class="contact-label">Location</h3>
-                        <p class="contact-value">Shanghai, China</p>
-                    </div>
-                </div>
-                
-                <div class="contact-social">
-                    <h3 class="contact-label">Connect</h3>
-                    <div class="social-links">
-                        <a href="#" class="social-link">Instagram</a>
-                        <a href="#" class="social-link">Behance</a>
-                        <a href="#" class="social-link">Dribbble</a>
-                        <a href="#" class="social-link">LinkedIn</a>
-                    </div>
-                </div>
-            </div>
-            <div class="contact-form">
-                <h2 class="form-title">Send a Message</h2>
-                <form class="message-form">
-                    <div class="form-group">
-                        <label for="name" class="form-label">Name</label>
-                        <input type="text" id="name" class="form-input" placeholder="Your name" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="email" class="form-label">Email</label>
-                        <input type="email" id="email" class="form-input" placeholder="Your email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="subject" class="form-label">Subject</label>
-                        <input type="text" id="subject" class="form-input" placeholder="Subject" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="message" class="form-label">Message</label>
-                        <textarea id="message" class="form-textarea" placeholder="Your message" rows="6" required></textarea>
-                    </div>
-                    <button type="submit" class="form-button">Send Message</button>
-                </form>
+    </header>
+    <main class="content-page">
+        <p class="eyebrow page-kicker">Contact & collaboration</p><h1 class="page-title">让我们一起创造<br>还不存在的画面。</h1>
+        <div class="contact-layout">
+            <div><p class="contact-lead">如果你有合作、展览或出版计划，欢迎来信。通常会在 2—3 个工作日内回复。</p><p class="contact-note">为了让我更快了解项目，可以在邮件中附上时间安排、使用场景、预算范围和你喜欢的作品。</p></div>
+            <div class="contact-list">
+                <div class="contact-item"><span>Email</span><a href="mailto:hello@xiaofart.com">hello@xiaofart.com</a><span>↗</span></div>
+                <div class="contact-item"><span>Instagram</span><a href="#" aria-label="Instagram（链接待配置）">@xiaofart</a><span>↗</span></div>
+                <div class="contact-item"><span>Location</span><span>Shanghai, China</span><span>·</span></div>
             </div>
         </div>
     </main>
-
-    <script src="script.js"></script>
-</body>
-</html>
+    <footer class="site-footer"><p>© <span id="currentYear"></span> 林小肥作品展</p><p>Available for selected projects.</p><a href="index.html" data-skip-entry>查看作品 →</a></footer>
+    <script src="site-transition.js"></script>
+    <script src="page-shell.js"></script>
+</body></html>

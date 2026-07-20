@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仪表盘 — 林小肥作品展管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+        }
+        .sidebar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .nav-link {
+            transition: all 0.3s ease;
+        }
+        .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-left: 4px solid white;
+        }
+        .card {
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        .btn-secondary {
+            transition: all 0.3s ease;
+        }
+        .btn-secondary:hover {
+            background-color: #e2e8f0;
+        }
+        .image-card {
+            transition: all 0.3s ease;
+        }
+        .image-card:hover {
+            transform: scale(1.02);
+        }
+    </style>
+    <link href="admin-theme.css?v=20260720-4" rel="stylesheet">
+    <script src="admin-shell.js" defer></script>
+</head>
+<body class="admin-app flex h-screen overflow-hidden">
+    <!-- 侧边栏 -->
+    <div class="sidebar w-64 flex-shrink-0 flex flex-col text-white">
+        <div class="p-6 border-b border-white/20">
+            <h1 class="text-2xl font-bold tracking-tight">林小肥作品展</h1>
+            <p class="text-white/80 text-sm mt-1">内容管理后台</p>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-1">
+            <a href="dashboard.html" class="nav-link active flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-tachometer-alt w-5 text-center"></i>
+                <span>仪表盘</span>
+            </a>
+            <a href="upload.html" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-cloud-upload-alt w-5 text-center"></i>
+                <span>上传图片</span>
+            </a>
+            <a href="image-editor.html" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-pen-to-square w-5 text-center"></i>
+                <span>图片编辑</span>
+            </a>
+            <a href="groups.html" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-folder w-5 text-center"></i>
+                <span>图片分类</span>
+            </a>
+            <a href="#visitorSection" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-users w-5 text-center"></i>
+                <span>访客分析</span>
+            </a>
+        </nav>
+
+        <div class="p-4 border-t border-white/20">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div>
+                    <p id="userName" class="font-medium">用户</p>
+                </div>
+                <button id="logoutBtn" class="ml-auto text-white/70 hover:text-white">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- 顶部导航 -->
+        <header class="bg-white shadow-sm z-10">
+            <div class="flex items-center justify-between p-4">
+                <h2 class="text-xl font-semibold text-gray-800">仪表盘</h2>
+            </div>
+        </header>
+
+        <!-- 内容区 -->
+        <main class="flex-1 overflow-y-auto p-6">
+            <!-- 统计卡片 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+                <div class="card bg-white rounded-xl shadow p-5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-11 h-11 flex-shrink-0 rounded-full bg-indigo-100 flex items-center justify-center">
+                            <i class="fas fa-image text-indigo-600 text-xl"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-gray-500 text-sm font-medium tracking-wide whitespace-nowrap">唯一图片数</p>
+                            <h3 class="text-3xl leading-none font-bold text-gray-800 mt-2" id="totalImages">0</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-white rounded-xl shadow p-5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-11 h-11 flex-shrink-0 rounded-full bg-green-100 flex items-center justify-center">
+                            <i class="fas fa-folder text-green-600 text-xl"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-gray-500 text-sm font-medium tracking-wide whitespace-nowrap">分类总数</p>
+                            <h3 class="text-3xl leading-none font-bold text-gray-800 mt-2" id="totalGroups">0</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-white rounded-xl shadow p-5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-11 h-11 flex-shrink-0 rounded-full bg-yellow-100 flex items-center justify-center">
+                            <i class="fas fa-eye text-yellow-600 text-xl"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-gray-500 text-sm font-medium tracking-wide whitespace-nowrap">前台浏览量</p>
+                            <h3 class="text-3xl leading-none font-bold text-gray-800 mt-2" id="totalViews">0</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-white rounded-xl shadow p-5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-11 h-11 flex-shrink-0 rounded-full bg-orange-100 flex items-center justify-center">
+                            <i class="fas fa-users text-orange-600 text-xl"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-gray-500 text-sm font-medium tracking-wide whitespace-nowrap">近 30 天访客</p>
+                            <h3 class="text-3xl leading-none font-bold text-gray-800 mt-2" id="uniqueVisitors">0</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 最近上传 -->
+            <div class="bg-white rounded-xl shadow p-6 mb-8">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-semibold text-gray-800">最近上传</h3>
+                    <a href="upload.html" class="text-indigo-600 hover:text-indigo-500 text-sm font-medium">查看全部</a>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4" id="recentImages">
+                    <!-- 图片卡片将通过JavaScript动态生成 -->
+                </div>
+            </div>
+
+            <section id="visitorSection" class="bg-white rounded-xl shadow p-6 mt-8">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">最近匿名访客</h3>
+                        <p class="text-sm text-gray-500 mt-1">不采集姓名或邮箱，仅用于了解设备、来源与访问频次</p>
+                    </div>
+                    <p class="text-sm text-gray-500">今日 <strong id="todayViews" class="text-gray-800">0</strong> 次访问</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[720px] text-sm">
+                        <thead><tr class="border-b text-left text-gray-500"><th class="py-3 pr-4">访客</th><th class="py-3 pr-4">最后访问</th><th class="py-3 pr-4">设备</th><th class="py-3 pr-4">视口</th><th class="py-3 pr-4">来源</th><th class="py-3 text-right">访问次数</th></tr></thead>
+                        <tbody id="visitorRows"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+
+        function escapeAttribute(value) {
+            return escapeHtml(value).replace(/`/g, '&#96;');
+        }
+
+        function assetUrl(src) {
+            return '/portfolio-assets/' + String(src || '')
+                .replace(/^[/\\]+/, '')
+                .split('/')
+                .map(encodeURIComponent)
+                .join('/');
+        }
+
+        // 检查登录状态
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            return true;
+        }
+
+        // 初始化页面
+        async function init() {
+            if (!checkAuth()) return;
+
+            // 加载用户信息
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (user) {
+                document.getElementById('userName').textContent = user.name;
+            }
+
+            // 加载统计数据
+            await loadStats();
+            await loadRecentImages();
+            await loadAnalytics();
+
+            // 登出按钮
+            document.getElementById('logoutBtn').addEventListener('click', () => {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = 'login.html';
+            });
+        }
+
+        function formatDate(value) {
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function deviceLabel(value) {
+            return ({ mobile: '移动端', tablet: '平板', desktop: '电脑', unknown: '未知' })[value] || '未知';
+        }
+
+        async function loadAnalytics() {
+            try {
+                const token = localStorage.getItem('token');
+                const headers = { Authorization: `Bearer ${token}` };
+                const [summaryResponse, visitorsResponse] = await Promise.all([
+                    fetch('/api/analytics/summary', { headers }),
+                    fetch('/api/analytics/visitors?limit=30', { headers })
+                ]);
+                if (summaryResponse.ok) {
+                    const summary = await summaryResponse.json();
+                    document.getElementById('totalViews').textContent = summary.totalViews || 0;
+                    document.getElementById('uniqueVisitors').textContent = summary.uniqueVisitors30d || 0;
+                    document.getElementById('todayViews').textContent = summary.todayViews || 0;
+                }
+                if (visitorsResponse.ok) {
+                    const visitors = await visitorsResponse.json();
+                    const rows = document.getElementById('visitorRows');
+                    rows.innerHTML = visitors.length ? visitors.map(visitor => `
+                        <tr class="border-b border-gray-100">
+                            <td class="py-3 pr-4 font-mono text-xs text-gray-600">${escapeHtml(visitor.anonymousId)}</td>
+                            <td class="py-3 pr-4 text-gray-600">${escapeHtml(formatDate(visitor.lastSeen))}</td>
+                            <td class="py-3 pr-4 text-gray-600">${escapeHtml(deviceLabel(visitor.device))}</td>
+                            <td class="py-3 pr-4 text-gray-600">${escapeHtml(visitor.viewport || '—')}</td>
+                            <td class="py-3 pr-4 text-gray-600 max-w-xs truncate" title="${escapeAttribute(visitor.referrer || visitor.path || '')}">${escapeHtml(visitor.referrer || visitor.path || '直接访问')}</td>
+                            <td class="py-3 text-right font-medium text-gray-800">${escapeHtml(visitor.visits)}</td>
+                        </tr>
+                    `).join('') : '<tr><td colspan="6" class="py-10 text-center text-gray-500">暂无访客数据</td></tr>';
+                }
+            } catch (error) {
+                console.error('加载访客分析失败:', error);
+            }
+        }
+
+        // 加载统计数据
+        async function loadStats() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/dashboard/stats', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('totalImages').textContent = data.totalImages || 0;
+                    document.getElementById('totalGroups').textContent = data.totalGroups || 0;
+                    document.getElementById('totalViews').textContent = data.totalViews || 0;
+                }
+            } catch (error) {
+                console.error('加载统计数据失败:', error);
+            }
+        }
+
+        // 加载最近上传的图片
+        async function loadRecentImages() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/site/recent-images', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const images = await response.json();
+                    const container = document.getElementById('recentImages');
+
+                    if (images.length === 0) {
+                        container.innerHTML = '<p class="col-span-full text-center text-gray-500">暂无图片</p>';
+                        return;
+                    }
+
+                    container.innerHTML = images.map(image => `
+                        <div class="image-card relative rounded-lg overflow-hidden">
+                            <img src="${escapeAttribute(assetUrl(image.src))}" alt="${escapeAttribute(image.filename)}" class="w-full h-32 object-cover">
+                            <div class="absolute inset-0 bg-black bg-opacity-40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <div class="px-3 py-2 text-center text-white">
+                                    <p class="text-xs font-semibold uppercase tracking-wide">${escapeHtml(image.category)}</p>
+                                    <p class="text-sm mt-1">${escapeHtml(image.filename)}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('加载最近图片失败:', error);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

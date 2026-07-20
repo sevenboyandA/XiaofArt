@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>林小肥作品展 — 内容管理后台</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+        }
+        .hero-section {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .feature-card {
+            background: rgba(255, 255, 255, 0.95);
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+    </style>
+    <link href="admin-theme.css?v=20260720-4" rel="stylesheet">
+    <script src="admin-shell.js" defer></script>
+</head>
+<body class="admin-landing flex flex-col min-h-screen">
+    <!-- 导航栏 -->
+    <nav class="p-6">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <h1 class="logo text-white">林小肥作品展</h1>
+            <div class="space-x-4">
+                <a href="login.html" class="text-white hover:text-white/80 transition">登录</a>
+                <a href="register.html" class="btn-primary px-6 py-2 rounded-full text-white">注册</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <main class="flex-1 flex items-center">
+        <div class="max-w-6xl mx-auto px-6 py-12">
+            <div class="hero-section rounded-3xl p-12 mb-12 text-center">
+                <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">
+                    让作品管理保持清晰、安静与高效
+                </h2>
+                <p class="text-white/80 text-lg mb-8 max-w-2xl mx-auto">
+                    上传画作、整理系列、查看浏览数据，并将内容同步到对外展示的网站。
+                </p>
+                <div class="flex flex-wrap justify-center gap-4">
+                    <a href="register.html" class="btn-primary px-8 py-3 rounded-full text-white font-medium text-lg">
+                        立即开始
+                    </a>
+                    <a href="login.html" class="bg-white/20 hover:bg-white/30 px-8 py-3 rounded-full text-white font-medium text-lg transition">
+                        登录已有账号
+                    </a>
+                </div>
+            </div>
+
+            <!-- 功能特点 -->
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="feature-card rounded-2xl p-8 text-center">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-indigo-100 flex items-center justify-center">
+                        <i class="fas fa-cloud-upload-alt text-3xl text-indigo-600"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2 text-gray-800">批量上传</h3>
+                    <p class="text-gray-600">支持批量上传多张图片，告别繁琐的单张上传，并提供清晰的保存反馈。</p>
+                </div>
+
+                <div class="feature-card rounded-2xl p-8 text-center">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+                        <i class="fas fa-folder-open text-3xl text-green-600"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2 text-gray-800">分类管理</h3>
+                    <p class="text-gray-600">支持创建、编辑和归并分类，让作品内容保持清晰结构。</p>
+                </div>
+
+                <div class="feature-card rounded-2xl p-8 text-center">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-100 flex items-center justify-center">
+                        <i class="fas fa-shield-alt text-3xl text-yellow-600"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2 text-gray-800">权限管理</h3>
+                    <p class="text-gray-600">完整的角色权限系统，支持管理员、普通用户等多种角色，精细控制操作权限。</p>
+                </div>
+
+                <div class="feature-card rounded-2xl p-8 text-center">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-100 flex items-center justify-center">
+                        <i class="fas fa-eye text-3xl text-purple-600"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2 text-gray-800">高清预览</h3>
+                    <p class="text-gray-600">支持多种图片格式，提供高清预览和缩放功能，确保最佳观看体验。</p>
+                </div>
+
+                <div class="feature-card rounded-2xl p-8 text-center">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+                        <i class="fas fa-mobile-alt text-3xl text-red-600"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2 text-gray-800">响应式设计</h3>
+                    <p class="text-gray-600">完美适配各种设备，无论是电脑、平板还是手机，都能获得最佳体验。</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="py-8 text-center text-white/60">
+        <p>&copy; 2026 林小肥作品展 · 内容管理后台</p>
+    </footer>
+</body>
+</html>

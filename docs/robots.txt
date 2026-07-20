@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://sevenboyanda.github.io/XiaofArt/sitemap.xml

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片编辑 — 林小肥作品展管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="admin-theme.css?v=20260720-4" rel="stylesheet">
+    <script src="admin-shell.js" defer></script>
+    <script src="image-editor.js" defer></script>
+</head>
+<body class="admin-app flex h-screen overflow-hidden">
+    <div class="sidebar w-64 flex-shrink-0 flex flex-col text-white">
+        <div class="p-6 border-b border-white/20">
+            <h1 class="text-2xl font-bold tracking-tight">林小肥作品展</h1>
+            <p class="text-white/80 text-sm mt-1">内容管理后台</p>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-1">
+            <a href="dashboard.html" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-tachometer-alt w-5 text-center"></i>
+                <span>仪表盘</span>
+            </a>
+            <a href="upload.html" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-cloud-upload-alt w-5 text-center"></i>
+                <span>上传图片</span>
+            </a>
+            <a href="image-editor.html" class="nav-link active flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-pen-to-square w-5 text-center"></i>
+                <span>图片编辑</span>
+            </a>
+            <a href="groups.html" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-folder w-5 text-center"></i>
+                <span>图片分类</span>
+            </a>
+        </nav>
+
+        <div class="p-4 border-t border-white/20">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div><p id="userName" class="font-medium">用户</p></div>
+                <button id="logoutBtn" class="ml-auto text-white/70 hover:text-white" aria-label="退出登录">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <header class="bg-white shadow-sm z-10">
+            <div class="flex items-center justify-between p-4">
+                <div>
+                    <p class="text-sm uppercase tracking-wide text-gray-500 font-semibold">Collection Editor</p>
+                    <h2 class="text-2xl font-semibold text-gray-900 mt-1">图片编辑</h2>
+                </div>
+                <p class="image-editor-header-note">逐幅命名、记录简介，并安排前台展示位置</p>
+            </div>
+        </header>
+
+        <main class="image-editor-main flex-1 overflow-y-auto p-6">
+            <section class="image-series-toolbar panel bg-white">
+                <div class="series-picker">
+                    <label for="seriesSelect">选择图片系列</label>
+                    <select id="seriesSelect" aria-describedby="seriesHelp" disabled>
+                        <option>正在加载系列…</option>
+                    </select>
+                    <p id="seriesHelp">选择系列后，可连续编辑这一组中的全部画作。</p>
+                </div>
+                <div class="series-summary" aria-live="polite">
+                    <span id="seriesCategory">—</span>
+                    <strong id="seriesTitle">尚未选择系列</strong>
+                    <span id="seriesCount">0 张图片</span>
+                </div>
+                <button id="saveMetadataBtn" type="button" class="btn-primary" disabled>
+                    <span>保存全部修改</span>
+                </button>
+            </section>
+
+            <p id="editorNotice" class="image-editor-notice" role="status" aria-live="polite"></p>
+
+            <section id="imageEditorEmpty" class="image-editor-empty panel bg-white">
+                <span aria-hidden="true">◌</span>
+                <h3>选择一个图片系列</h3>
+                <p>系列中的全部画作会显示在这里，并保持当前展示顺序。</p>
+            </section>
+
+            <section id="imageMetadataGrid" class="image-metadata-grid" aria-label="图片资料编辑列表"></section>
+        </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

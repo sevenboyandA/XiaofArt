@@ -1,0 +1,32 @@
+{
+  "name": "img-management-system",
+  "version": "1.0.0",
+  "description": "独立的图片管理系统",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "local": "node scripts/start-local.js",
+    "dev": "nodemon backend/server.js",
+    "db:up": "docker compose -f compose.yml up -d",
+    "db:down": "docker compose -f compose.yml down",
+    "images:optimize": "node scripts/optimize-managed-images.js",
+    "check": "node scripts/check-js.js",
+    "build": "npm run check",
+    "site:build": "node ../scripts/build-static-site.js",
+    "site:check": "node ../scripts/check-static-site.js",
+    "site:publish": "npm run site:build && npm run site:check"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^7.5.3",
+    "multer": "^1.4.5-lts.1",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

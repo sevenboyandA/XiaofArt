@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分类管理 — 林小肥作品展管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+        }
+        .sidebar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .nav-link {
+            transition: all 0.3s ease;
+        }
+        .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-left: 4px solid white;
+        }
+        .card {
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        .btn-secondary {
+            transition: all 0.3s ease;
+        }
+        .btn-secondary:hover {
+            background-color: #e2e8f0;
+        }
+        .form-input {
+            transition: all 0.3s ease;
+        }
+        .form-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            transform: translateY(-100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    </style>
+    <link href="admin-theme.css?v=20260720-4" rel="stylesheet">
+    <script src="admin-shell.js" defer></script>
+</head>
+<body class="admin-app flex h-screen overflow-hidden">
+    <!-- 侧边栏 -->
+    <div class="sidebar w-64 flex-shrink-0 flex flex-col text-white">
+        <div class="p-6 border-b border-white/20">
+            <h1 class="text-2xl font-bold tracking-tight">林小肥作品展</h1>
+            <p class="text-white/80 text-sm mt-1">内容管理后台</p>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-1">
+            <a href="dashboard.html" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-tachometer-alt w-5 text-center"></i>
+                <span>仪表盘</span>
+            </a>
+            <a href="upload.html" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-cloud-upload-alt w-5 text-center"></i>
+                <span>上传图片</span>
+            </a>
+            <a href="image-editor.html" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-pen-to-square w-5 text-center"></i>
+                <span>图片编辑</span>
+            </a>
+            <a href="groups.html" class="nav-link active flex items-center space-x-3 px-4 py-3 rounded-lg">
+                <i class="fas fa-folder w-5 text-center"></i>
+                <span>图片分类</span>
+            </a>
+        </nav>
+
+        <div class="p-4 border-t border-white/20">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div>
+                    <p id="userName" class="font-medium">用户</p>
+                </div>
+                <button id="logoutBtn" class="ml-auto text-white/70 hover:text-white">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- 顶部导航 -->
+        <header class="bg-white shadow-sm z-10">
+            <div class="flex items-center justify-between p-4">
+                <h2 class="text-xl font-semibold text-gray-800">分类管理</h2>
+            </div>
+        </header>
+
+        <!-- 内容区 -->
+        <main class="flex-1 overflow-y-auto p-6">
+            <!-- 操作区 -->
+            <div class="bg-white rounded-xl shadow p-6 mb-8">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-semibold text-gray-800">分类管理</h3>
+                    <button id="addCategoryBtn" class="btn-primary px-4 py-2 rounded-lg text-white font-medium flex items-center space-x-2">
+                        <i class="fas fa-plus"></i>
+                        <span>添加分类</span>
+                    </button>
+                </div>
+
+                <!-- 添加分类表单 -->
+                <div id="addCategoryForm" class="mb-6 hidden">
+                    <div class="flex items-center space-x-4">
+                        <input type="text" id="newCategoryName" placeholder="输入分类名称" class="form-input flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                        <button id="submitCategoryBtn" class="btn-primary px-4 py-2 rounded-lg text-white font-medium">
+                            保存
+                        </button>
+                        <button id="cancelCategoryBtn" class="btn-secondary px-4 py-2 rounded-lg text-gray-700 font-medium">
+                            取消
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 分类列表 -->
+                <div class="space-y-4" id="categoryList">
+                    <!-- 分类项将通过JavaScript动态生成 -->
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- 提示框 -->
+    <div id="toast" class="toast" role="status" aria-live="polite">
+        <span id="toastMessage"></span>
+    </div>
+
+    <!-- 确认对话框 -->
+    <div id="confirmModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl p-6 max-w-md w-full">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">确认操作</h3>
+            <p id="confirmMessage" class="text-gray-600 mb-6"></p>
+            <div class="flex items-center justify-end space-x-3">
+                <button id="cancelConfirmBtn" class="btn-secondary px-4 py-2 rounded-lg text-gray-700 font-medium">
+                    取消
+                </button>
+                <button id="confirmBtn" class="btn-primary px-4 py-2 rounded-lg text-white font-medium">
+                    确认
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+
+        function escapeAttribute(value) {
+            return escapeHtml(value).replace(/`/g, '&#96;');
+        }
+
+        // 检查登录状态
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            return true;
+        }
+
+        // 获取token
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+
+        // 显示提示框
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            toastMessage.textContent = message;
+            toast.dataset.type = type;
+            toast.className = 'toast show';
+            clearTimeout(Number(toast.dataset.hideTimer || 0));
+            const hideTimer = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2200);
+            toast.dataset.hideTimer = String(hideTimer);
+        }
+
+        // 显示确认对话框
+        function showConfirmDialog(message, onConfirm) {
+            const modal = document.getElementById('confirmModal');
+            const confirmMessage = document.getElementById('confirmMessage');
+            const confirmBtn = document.getElementById('confirmBtn');
+            const cancelBtn = document.getElementById('cancelConfirmBtn');
+
+            confirmMessage.textContent = message;
+            modal.classList.remove('hidden');
+
+            const confirmHandler = () => {
+                onConfirm();
+                modal.classList.add('hidden');
+                confirmBtn.removeEventListener('click', confirmHandler);
+            };
+
+            const cancelHandler = () => {
+                modal.classList.add('hidden');
+                cancelBtn.removeEventListener('click', cancelHandler);
+            };
+
+            confirmBtn.addEventListener('click', confirmHandler);
+            cancelBtn.addEventListener('click', cancelHandler);
+        }
+
+        // 加载分类列表
+        async function loadCategories() {
+            try {
+                const response = await fetch('/api/site/categories', {
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`
+                    }
+                });
+
+                if (response.ok) {
+                    const categories = await response.json();
+                    renderCategories(categories);
+                } else {
+                    showToast('加载分类失败', 'error');
+                }
+            } catch (error) {
+                console.error('加载分类失败:', error);
+                showToast('加载分类失败', 'error');
+            }
+        }
+
+        // 渲染分类列表
+        function renderCategories(categories) {
+            const categoryList = document.getElementById('categoryList');
+
+            if (categories.length === 0) {
+                categoryList.innerHTML = '<p class="text-center text-gray-500 py-8">暂无分类</p>';
+                return;
+            }
+
+            categoryList.innerHTML = categories.map(category => `
+                <div class="flex items-center justify-between p-4 rounded-lg hover:bg-gray-50 border border-gray-100">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                            <i class="fas fa-folder text-indigo-600"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-800">${escapeHtml(category.name)}</p>
+                            <p class="text-sm text-gray-500">${escapeHtml(category.projectCount)} 个项目 | ${escapeHtml(category.imageCount)} 张图片</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button class="edit-category-btn text-gray-500 hover:text-indigo-600" data-name="${escapeAttribute(category.name)}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="delete-category-btn text-gray-500 hover:text-red-600" data-name="${escapeAttribute(category.name)}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            // 添加编辑和删除事件监听
+            document.querySelectorAll('.edit-category-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const categoryName = btn.dataset.name;
+                    editCategory(categoryName);
+                });
+            });
+
+            document.querySelectorAll('.delete-category-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const categoryName = btn.dataset.name;
+                    deleteCategory(categoryName);
+                });
+            });
+        }
+
+        // 添加分类
+        async function addCategory(name) {
+            try {
+                const response = await fetch('/api/site/categories', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showToast('分类添加成功');
+                    loadCategories();
+                    return true;
+                } else {
+                    const data = await response.json();
+                    showToast(data.message, 'error');
+                    return false;
+                }
+            } catch (error) {
+                console.error('添加分类失败:', error);
+                showToast('添加分类失败', 'error');
+                return false;
+            }
+        }
+
+        // 编辑分类
+        function editCategory(oldName) {
+            // 创建编辑分类的模态对话框
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-xl p-6 max-w-md w-full">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">编辑分类</h3>
+                    <p class="text-gray-600 mb-4">请输入新的分类名称:</p>
+                    <input type="text" id="editCategoryInput" class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" value="${escapeAttribute(oldName)}">
+                    <div class="flex items-center justify-end space-x-3 mt-6">
+                        <button id="cancelEditBtn" class="px-4 py-2 rounded-lg text-gray-700 font-medium border border-gray-300 hover:bg-gray-50">
+                            取消
+                        </button>
+                        <button id="confirmEditBtn" class="px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700">
+                            确认
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // 取消按钮事件
+            document.getElementById('cancelEditBtn').addEventListener('click', () => {
+                document.body.removeChild(modal);
+            });
+
+            // 确认按钮事件
+            document.getElementById('confirmEditBtn').addEventListener('click', () => {
+                const newName = document.getElementById('editCategoryInput').value.trim();
+                if (newName && newName !== oldName) {
+                    updateCategory(oldName, newName);
+                }
+                document.body.removeChild(modal);
+            });
+        }
+
+        // 更新分类
+        async function updateCategory(oldName, newName) {
+            try {
+                const response = await fetch(`/api/site/categories/${encodeURIComponent(oldName)}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: newName })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showToast('分类更新成功');
+                    loadCategories();
+                    return true;
+                } else {
+                    const data = await response.json();
+                    showToast(data.message, 'error');
+                    return false;
+                }
+            } catch (error) {
+                console.error('更新分类失败:', error);
+                showToast('更新分类失败', 'error');
+                return false;
+            }
+        }
+
+        // 删除分类
+        function deleteCategory(name) {
+            showConfirmDialog(`确定要删除分类 "${name}" 吗？\n\n删除后，该分类下的项目将需要重新分配分类。`, async () => {
+                try {
+                    // 先获取所有分类，用于选择替代分类
+                    const categoriesResponse = await fetch('/api/site/categories', {
+                        headers: {
+                            'Authorization': `Bearer ${getToken()}`
+                        }
+                    });
+
+                    if (categoriesResponse.ok) {
+                        const categories = await categoriesResponse.json();
+                        const otherCategories = categories.filter(cat => cat.name !== name);
+
+                        if (otherCategories.length > 0) {
+                            // 创建替代分类选择的模态对话框
+                            const modal = document.createElement('div');
+                            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+
+                            const optionsHtml = otherCategories.map(cat =>
+                                `<option value="${escapeAttribute(cat.name)}">${escapeHtml(cat.name)}</option>`
+                            ).join('');
+
+                            modal.innerHTML = `
+                                <div class="bg-white rounded-xl p-6 max-w-md w-full">
+                                    <h3 class="text-lg font-semibold text-gray-800 mb-4">选择替代分类</h3>
+                                    <p class="text-gray-600 mb-4">删除后，该分类下的项目将移动到所选分类：</p>
+                                    <select id="replacementCategory" class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                        ${optionsHtml}
+                                    </select>
+                                    <div class="flex items-center justify-end space-x-3 mt-6">
+                                        <button id="cancelReplacementBtn" class="px-4 py-2 rounded-lg text-gray-700 font-medium border border-gray-300 hover:bg-gray-50">
+                                            取消
+                                        </button>
+                                        <button id="confirmReplacementBtn" class="px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700">
+                                            确认
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                            document.body.appendChild(modal);
+
+                            // 取消按钮事件
+                            document.getElementById('cancelReplacementBtn').addEventListener('click', () => {
+                                document.body.removeChild(modal);
+                            });
+
+                            // 确认按钮事件
+                            document.getElementById('confirmReplacementBtn').addEventListener('click', async () => {
+                                const replacementName = document.getElementById('replacementCategory').value;
+                                if (replacementName) {
+                                    await performDeleteCategory(name, replacementName);
+                                }
+                                document.body.removeChild(modal);
+                            });
+                        } else {
+                            showToast('至少需要保留一个分类', 'error');
+                        }
+                    }
+                } catch (error) {
+                    console.error('删除分类失败:', error);
+                    showToast('删除分类失败', 'error');
+                }
+            });
+        }
+
+        // 执行删除分类
+        async function performDeleteCategory(name, replacementName) {
+            try {
+                const response = await fetch(`/api/site/categories/${encodeURIComponent(name)}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ replacementName })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showToast('分类删除成功');
+                    loadCategories();
+                    return true;
+                } else {
+                    const data = await response.json();
+                    showToast(data.message, 'error');
+                    return false;
+                }
+            } catch (error) {
+                console.error('删除分类失败:', error);
+                showToast('删除分类失败', 'error');
+                return false;
+            }
+        }
+
+        // 初始化页面
+        async function init() {
+            if (!checkAuth()) return;
+
+            // 加载用户信息
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (user) {
+                document.getElementById('userName').textContent = user.name;
+            }
+
+            // 登出按钮
+            document.getElementById('logoutBtn').addEventListener('click', () => {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = 'login.html';
+            });
+
+            // 添加分类按钮
+            document.getElementById('addCategoryBtn').addEventListener('click', () => {
+                document.getElementById('addCategoryForm').classList.toggle('hidden');
+            });
+
+            // 取消添加分类
+            document.getElementById('cancelCategoryBtn').addEventListener('click', () => {
+                document.getElementById('addCategoryForm').classList.add('hidden');
+                document.getElementById('newCategoryName').value = '';
+            });
+
+            // 提交添加分类
+            document.getElementById('submitCategoryBtn').addEventListener('click', () => {
+                const name = document.getElementById('newCategoryName').value.trim();
+                if (name) {
+                    addCategory(name).then(success => {
+                        if (success) {
+                            document.getElementById('addCategoryForm').classList.add('hidden');
+                            document.getElementById('newCategoryName').value = '';
+                        }
+                    });
+                } else {
+                    showToast('分类名称不能为空', 'error');
+                }
+            });
+
+            // 加载分类列表
+            await loadCategories();
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

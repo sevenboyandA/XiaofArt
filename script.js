@@ -12,7 +12,7 @@ function getProjectGallery(startIndex, size = 4) {
 }
 
 function getProjectUrl(id) {
-    return `project1.html?id=${id}`;
+    return `index.html?project=${encodeURIComponent(id)}`;
 }
 
 function sanitizeImagePath(src, fallback = '') {
@@ -237,7 +237,25 @@ function normalizeProject(project) {
 }
 
 const injectedProjects = Array.isArray(window.XIAOFART_SITE_DATA?.projects) ? window.XIAOFART_SITE_DATA.projects : [];
-const projects = (injectedProjects.length > 0 ? injectedProjects : defaultProjects).map(normalizeProject);
+let projects = (injectedProjects.length > 0 ? injectedProjects : defaultProjects).map(normalizeProject);
+
+async function refreshProjectsFromApi() {
+    if (!['http:', 'https:'].includes(window.location.protocol)) return;
+
+    try {
+        const response = await fetch('/api/public/projects', {
+            headers: { Accept: 'application/json' }
+        });
+        if (!response.ok) return;
+
+        const apiProjects = await response.json();
+        if (Array.isArray(apiProjects) && apiProjects.length > 0) {
+            projects = apiProjects.map(normalizeProject);
+        }
+    } catch (error) {
+        // 静态部署或后端暂时不可用时继续使用 site-data.js 快照。
+    }
+}
 
 let currentIndex = 0;
 let isAnimating = false;
@@ -347,6 +365,8 @@ const ThemeSystem = {
         const toggleBtn = document.getElementById('themeToggle');
         if (toggleBtn) {
             toggleBtn.setAttribute('data-theme', this.isDark ? 'dark' : 'light');
+            toggleBtn.setAttribute('aria-pressed', String(!this.isDark));
+            toggleBtn.setAttribute('aria-label', this.isDark ? '切换到浅色主题' : '切换到深色主题');
         }
     },
 
@@ -420,19 +440,45 @@ function initInlineProjectRouting() {
     if (!document.getElementById('horizontalContainer')) return;
 
     window.addEventListener('popstate', syncInlineProjectWithLocation);
+    if (new URLSearchParams(window.location.search).has('project')) {
+        syncInlineProjectWithLocation();
+    }
 }
 
 function renderHomeProjects() {
-    const sections = document.querySelectorAll('.scroll-section');
-    if (!sections.length) return;
+    const track = document.getElementById('scrollTrack');
+    if (!track || !projects.length) return;
+
+    const fragment = document.createDocumentFragment();
+    projects.forEach((project, index) => {
+        const section = document.createElement('section');
+        const content = document.createElement('div');
+        const frame = document.createElement('div');
+        const image = document.createElement('img');
+        const overlay = document.createElement('div');
+        const title = document.createElement('h2');
+        const meta = document.createElement('p');
+
+        section.className = 'scroll-section';
+        section.dataset.index = String(index);
+        content.className = 'section-content';
+        frame.className = 'project-frame';
+        image.className = 'project-image';
+        overlay.className = 'frame-overlay';
+        title.className = 'project-title';
+        meta.className = 'project-meta';
+
+        frame.append(image, overlay);
+        content.append(frame, title, meta);
+        section.append(content);
+        fragment.append(section);
+    });
+    track.replaceChildren(fragment);
+
+    const sections = track.querySelectorAll('.scroll-section');
 
     sections.forEach((section, index) => {
         const project = projects[index];
-        if (!project) {
-            section.remove();
-            return;
-        }
-
         const frame = section.querySelector('.project-frame');
         const image = section.querySelector('.project-image');
         const title = section.querySelector('.project-title');
@@ -440,6 +486,9 @@ function renderHomeProjects() {
 
         if (frame) {
             frame.dataset.id = project.id;
+            frame.tabIndex = 0;
+            frame.setAttribute('role', 'link');
+            frame.setAttribute('aria-label', `查看作品：${project.title}`);
         }
 
         if (image) {
@@ -449,6 +498,16 @@ function renderHomeProjects() {
             image.fetchPriority = index === 0 ? 'high' : 'low';
             image.alt = project.title;
             image.removeAttribute('src');
+            image.addEventListener('error', () => {
+                const fallback = projectDefaultsById.get(project.id)?.heroImage;
+                if (fallback && image.dataset.fallbackAttempted !== 'true') {
+                    image.dataset.fallbackAttempted = 'true';
+                    image.src = fallback;
+                    return;
+                }
+                frame?.classList.add('image-unavailable');
+                image.removeAttribute('src');
+            });
         }
 
         if (title) {
@@ -461,6 +520,10 @@ function renderHomeProjects() {
     });
 
     loadNearbyHomeImages(0);
+
+    const total = document.querySelectorAll('.scroll-section').length;
+    const totalLabel = document.getElementById('totalProjectNumber');
+    if (totalLabel) totalLabel.textContent = String(total).padStart(2, '0');
 }
 
 function loadHomeProjectImage(index) {
@@ -712,6 +775,12 @@ function initHorizontalScroll() {
 
         isScrolling = true;
         currentIndex = clampPosition(index);
+        sections.forEach((section, sectionIndex) => {
+            section.setAttribute('aria-hidden', sectionIndex === currentIndex ? 'false' : 'true');
+            section.querySelector('.project-frame')?.setAttribute('tabindex', sectionIndex === currentIndex ? '0' : '-1');
+        });
+        const currentLabel = document.getElementById('currentProjectNumber');
+        if (currentLabel) currentLabel.textContent = String(currentIndex + 1).padStart(2, '0');
         loadNearbyHomeImages(currentIndex);
         setTrackPosition(currentIndex, true);
 
@@ -747,6 +816,23 @@ function initHorizontalScroll() {
             wheelAccumulator = 0;
         }
     }, { passive: false });
+
+    document.addEventListener('keydown', (event) => {
+        if (document.body.classList.contains('inline-project-mode')) return;
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+            event.preventDefault();
+            scrollToSection(currentIndex + 1);
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            scrollToSection(currentIndex - 1);
+        } else if (event.key === 'Home') {
+            event.preventDefault();
+            scrollToSection(0, true);
+        } else if (event.key === 'End') {
+            event.preventDefault();
+            scrollToSection(totalSections - 1, true);
+        }
+    });
 
     let touchStartX = 0;
     let touchStartY = 0;
@@ -869,6 +955,8 @@ function initHorizontalScroll() {
     window.addEventListener('resize', () => {
         setTrackPosition(currentIndex);
     });
+
+    scrollToSection(0, true);
 }
 
 function initHoverEffects() {
@@ -902,6 +990,12 @@ function initClickHandlers() {
 
             const id = frame.dataset.id;
             navigateToProject(id);
+        });
+
+        frame.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            navigateToProject(frame.dataset.id);
         });
     });
 }
@@ -1137,6 +1231,7 @@ function createInlineProjectPage(project) {
     const currentImage = document.createElement('img');
     const content = document.createElement('div');
     const title = document.createElement('h1');
+    const description = document.createElement('p');
     const info = document.createElement('div');
     const controls = document.createElement('div');
     const prevBtn = document.createElement('div');
@@ -1155,6 +1250,7 @@ function createInlineProjectPage(project) {
     currentImage.alt = `${project.title} - Image 1`;
     content.className = 'gallery-content';
     title.className = 'gallery-title';
+    description.className = 'gallery-description';
     info.className = 'gallery-info';
     controls.className = 'gallery-controls';
     prevBtn.className = 'control-btn';
@@ -1171,6 +1267,7 @@ function createInlineProjectPage(project) {
     nextBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>';
 
     title.textContent = project.title;
+    description.textContent = project.description || '';
     info.append(
         createInfoItem('Image', '1 / 1'),
         createInfoItem('Category', project.category || ''),
@@ -1178,7 +1275,9 @@ function createInlineProjectPage(project) {
     );
 
     imageWrap.appendChild(currentImage);
-    content.append(title, info);
+    content.append(title);
+    if (description.textContent) content.append(description);
+    content.append(info);
     controls.append(prevBtn, indicator, nextBtn);
     container.append(imageWrap, controls, content);
     section.append(container);
@@ -1344,14 +1443,15 @@ function restorePortfolioView() {
 }
 
 function syncInlineProjectWithLocation() {
-    const isProjectUrl = window.location.pathname.includes('project1.html') || window.location.pathname.includes('project.html');
+    const params = new URLSearchParams(window.location.search);
+    const isProjectUrl = params.has('project') || window.location.pathname.includes('project1.html') || window.location.pathname.includes('project.html');
 
     if (!isProjectUrl) {
         restorePortfolioView();
         return;
     }
 
-    const projectId = Number(new URLSearchParams(window.location.search).get('id') || 1);
+    const projectId = Number(params.get('project') || params.get('id') || 1);
     const project = projects.find(item => item.id === projectId);
     if (project) {
         showInlineProjectPage(project, null, null, false);
@@ -1457,7 +1557,16 @@ function navigateToProject(id) {
     });
 
     setTimeout(() => {
-        showInlineProjectPage(project, transitionLayer, transitionImage, true);
+        try {
+            showInlineProjectPage(project, transitionLayer, transitionImage, true);
+        } catch (error) {
+            console.error('打开作品失败:', error);
+            transitionLayer.remove();
+            transitionImage.remove();
+            resetProjectListTransitionState();
+            isProjectTransitioning = false;
+            showInlineProjectPage(project, null, null, false);
+        }
     }, 560);
 }
 
@@ -1468,6 +1577,7 @@ function initScrollProgress() {
 }
 
 function updateProgress(current, total) {
+    if (!Number.isFinite(total) || total <= 0) return;
     const progress = ((current + 1) / total) * 100;
     if (progressBar) {
         progressBar.style.width = `${progress}%`;
@@ -1587,7 +1697,8 @@ function initDetailPage() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await refreshProjectsFromApi();
     const isProjectPage = window.location.pathname.includes('project.html');
     if (isProjectPage) {
         initDetailPage();

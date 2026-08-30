@@ -13,6 +13,10 @@
     };
 
     const elements = {};
+    let projectCloseTimer = 0;
+    let orbitMotionTimer = 0;
+    let lightboxSwitchTimer = 0;
+    let lightboxSwitchToken = 0;
 
     function sanitizeImagePath(value, fallback = '') {
         const raw = String(value || '').trim().replace(/\\/g, '/');
@@ -94,7 +98,8 @@
             orbitCurrent: document.getElementById('orbitCurrent'),
             orbitTotal: document.getElementById('orbitTotal'),
             orbitPrevious: document.getElementById('orbitPrevious'),
-            orbitNext: document.getElementById('orbitNext')
+            orbitNext: document.getElementById('orbitNext'),
+            orbitOpenMobile: document.getElementById('orbitOpenMobile')
         });
     }
 
@@ -132,6 +137,36 @@
         } catch (error) {
             // file:// 预览环境可能限制历史记录，不影响首页进入流程。
         }
+    }
+
+    function getRequestedProjectId() {
+        const params = new URLSearchParams(location.search);
+        if (!params.has('project')) return { present: false, id: 0 };
+
+        const raw = params.get('project') || '';
+        const id = /^\d+$/.test(raw) ? Number(raw) : 0;
+        return {
+            present: true,
+            id: Number.isSafeInteger(id) && id > 0 ? id : 0
+        };
+    }
+
+    function resolveRequestedProjectId() {
+        const request = getRequestedProjectId();
+        if (!request.present) return 0;
+
+        // 项目数据尚未完成加载时保留深链，加载结束后再验证。
+        if (request.id && !state.projects.length) return request.id;
+        if (request.id && state.projects.some(project => project.id === request.id)) return request.id;
+
+        clearProjectFromCurrentUrl();
+        return 0;
+    }
+
+    function openRequestedProjectFromUrl() {
+        if (!state.projects.length) return false;
+        const projectId = resolveRequestedProjectId();
+        return projectId ? openProject(projectId, null, false) : false;
     }
 
     function circularOffset(index, activeIndex, total) {
@@ -187,6 +222,16 @@
 
     function updateOrbit(animate = true) {
         if (!state.projects.length || !elements.orbitTrack) return;
+        clearTimeout(orbitMotionTimer);
+        if (animate) {
+            elements.orbitScene?.classList.add('is-moving');
+            orbitMotionTimer = setTimeout(() => {
+                elements.orbitScene?.classList.remove('is-moving');
+                orbitMotionTimer = 0;
+            }, 680);
+        } else {
+            elements.orbitScene?.classList.remove('is-moving');
+        }
         const cards = [...elements.orbitTrack.children];
         cards.forEach((card, index) => {
             const offset = circularOffset(index, state.orbitIndex, cards.length);
@@ -200,8 +245,6 @@
             card.style.setProperty('--orbit-opacity', hidden ? 0 : position.opacity);
             card.style.setProperty('--orbit-layer', hidden ? 0 : position.layer);
             card.style.setProperty('--orbit-pointer', hidden ? 'none' : 'auto');
-            card.style.setProperty('--orbit-saturation', position.saturation);
-            card.style.setProperty('--orbit-brightness', position.brightness);
             card.style.transitionDuration = animate ? '' : '0s';
             card.classList.toggle('is-active', offset === 0);
             card.setAttribute('aria-current', offset === 0 ? 'true' : 'false');
@@ -217,6 +260,7 @@
         elements.orbitActiveTitle.textContent = project.title;
         elements.orbitDescription.textContent = project.description || '绘画、角色与视觉叙事。';
         elements.orbitCurrent.textContent = String(state.orbitIndex + 1).padStart(2, '0');
+        elements.orbitOpenMobile?.setAttribute('aria-label', `查看系列：${project.title}`);
 
         if (!animate) requestAnimationFrame(() => cards.forEach(card => { card.style.transitionDuration = ''; }));
     }
@@ -243,6 +287,9 @@
         elements.projectDialog.scrollTop = 0;
         elements.projectDialog.scrollLeft = 0;
         elements.projectGallery.scrollLeft = 0;
+        elements.projectGallery.querySelectorAll('.project-image').forEach(figure => {
+            figure.scrollTop = 0;
+        });
         const shell = elements.projectDialog.querySelector('.dialog-shell');
         if (shell) {
             shell.scrollTop = 0;
@@ -252,7 +299,9 @@
 
     function openProject(projectId, trigger = null, updateUrl = true) {
         const index = state.projects.findIndex(project => project.id === Number(projectId));
-        if (index < 0) return;
+        if (index < 0) return false;
+        clearTimeout(projectCloseTimer);
+        projectCloseTimer = 0;
         state.activeProjectIndex = index;
         const project = state.projects[index];
 
@@ -283,12 +332,14 @@
         };
         document.startViewTransition ? document.startViewTransition(show) : show();
         if (updateUrl) updateHistory(project.id);
+        return true;
     }
 
     function createProjectImage(project, src, imageIndex) {
         const figure = document.createElement('figure');
         const button = document.createElement('button');
         const image = document.createElement('img');
+        const mobileProgress = document.createElement('div');
         const caption = document.createElement('figcaption');
         const customTitle = String(project.imageTitles[imageIndex] || '').trim();
         const description = String(project.imageDescriptions[imageIndex] || '').trim();
@@ -308,6 +359,13 @@
         image.fetchPriority = imageIndex === 0 ? 'high' : 'low';
         image.decoding = 'async';
         const count = `${String(imageIndex + 1).padStart(2, '0')} / ${String(project.gallery.length).padStart(2, '0')}`;
+        const progress = ((imageIndex + 1) / project.gallery.length) * 100;
+        mobileProgress.className = 'project-mobile-progress';
+        mobileProgress.setAttribute('aria-label', `第 ${imageIndex + 1} 幅，共 ${project.gallery.length} 幅`);
+        mobileProgress.innerHTML = `
+            <span class="project-mobile-progress-track" aria-hidden="true"><i style="width:${progress}%"></i></span>
+            <span class="project-mobile-progress-count">${count}</span>
+        `;
         caption.innerHTML = hasCustomMetadata ? `
             <div class="project-image-copy">
                 <h3>${escapeHtml(title)}</h3>
@@ -324,7 +382,7 @@
             <span class="project-image-count">${count}</span>
         `;
         button.append(image);
-        figure.append(button, caption);
+        figure.append(button, mobileProgress, caption);
         button.addEventListener('click', () => openLightbox(imageIndex));
         return figure;
     }
@@ -358,6 +416,9 @@
         const project = state.projects[state.activeProjectIndex];
         if (!project?.gallery.length) return;
         state.projectImageIndex = Math.max(0, Math.min(project.gallery.length - 1, index));
+        if (matchMedia('(max-width: 760px)').matches) {
+            elements.projectGallery.children[state.projectImageIndex]?.scrollTo({ top: 0, behavior: 'auto' });
+        }
         updateProjectIndicator();
         elements.projectGallery.scrollTo({
             left: state.projectImageIndex * elements.projectGallery.clientWidth,
@@ -371,8 +432,10 @@
 
     function closeProject(updateUrl = true) {
         if (!elements.projectDialog.open) return;
+        clearTimeout(projectCloseTimer);
         elements.projectDialog.classList.remove('is-visible');
-        setTimeout(() => {
+        projectCloseTimer = setTimeout(() => {
+            projectCloseTimer = 0;
             elements.projectDialog.close();
             if (!elements.lightbox.open) document.body.classList.remove('is-locked');
             const id = elements.projectDialog.dataset.triggerId;
@@ -404,8 +467,11 @@
         if (!project) return;
         const index = (state.lightboxIndex + project.gallery.length) % project.gallery.length;
         state.lightboxIndex = index;
+        const token = ++lightboxSwitchToken;
+        const src = project.gallery[index];
         const commit = () => {
-            elements.lightboxImage.src = project.gallery[index];
+            if (token !== lightboxSwitchToken) return;
+            elements.lightboxImage.src = src;
             elements.lightboxImage.alt = project.imageTitles[index] || project.title;
             const imageTitle = project.imageTitles[index] || '';
             const imageDescription = project.imageDescriptions[index] || '';
@@ -413,12 +479,27 @@
             elements.lightboxLabel.textContent = `${project.title} · ${index + 1} / ${project.gallery.length}`;
             elements.lightboxImage.classList.remove('is-switching');
         };
+        clearTimeout(lightboxSwitchTimer);
         if (instant) return commit();
-        elements.lightboxImage.classList.add('is-switching');
-        setTimeout(commit, 180);
+
+        // 先在后台解码下一张，避免淡出后等待网络或磁盘读取造成空白闪烁。
+        const preload = new Image();
+        let swapStarted = false;
+        const swap = () => {
+            if (swapStarted || token !== lightboxSwitchToken) return;
+            swapStarted = true;
+            elements.lightboxImage.classList.add('is-switching');
+            lightboxSwitchTimer = setTimeout(commit, 110);
+        };
+        preload.onload = swap;
+        preload.onerror = swap;
+        preload.src = src;
+        if (preload.complete) swap();
     }
 
     function closeLightbox() {
+        clearTimeout(lightboxSwitchTimer);
+        lightboxSwitchToken += 1;
         elements.lightbox.close();
         if (!elements.projectDialog.open) document.body.classList.remove('is-locked');
     }
@@ -434,7 +515,8 @@
         const motionReduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
         setTimeout(() => {
             elements.entryGate.hidden = true;
-        }, motionReduced ? 0 : 900);
+            openRequestedProjectFromUrl();
+        }, motionReduced ? 0 : 680);
     }
 
     function initEvents() {
@@ -463,8 +545,18 @@
             const card = event.target.closest('.orbit-card');
             if (!card) return;
             const index = Number(card.dataset.index);
+            if (matchMedia('(max-width: 600px)').matches) {
+                rotateOrbitTo(index);
+                return;
+            }
             if (index === state.orbitIndex) openProject(state.projects[index]?.id, card);
             else rotateOrbitTo(index);
+        });
+        elements.orbitOpenMobile?.addEventListener('click', () => {
+            const project = state.projects[state.orbitIndex];
+            if (!project) return;
+            const card = elements.orbitTrack?.querySelector(`[data-index="${state.orbitIndex}"]`);
+            openProject(project.id, card);
         });
         elements.orbitPrevious?.addEventListener('click', () => rotateOrbit(-1));
         elements.orbitNext?.addEventListener('click', () => rotateOrbit(1));
@@ -475,7 +567,7 @@
             if (orbitWheelLocked) return;
             orbitWheelLocked = true;
             rotateOrbit(delta > 0 ? 1 : -1);
-            setTimeout(() => { orbitWheelLocked = false; }, 460);
+            setTimeout(() => { orbitWheelLocked = false; }, 420);
         }, { passive: false });
         elements.orbitScene?.addEventListener('touchstart', event => {
             if (event.touches.length !== 1) return;
@@ -503,6 +595,13 @@
         });
         elements.projectDialog.addEventListener('click', event => { if (event.target === elements.projectDialog) closeProject(); });
         elements.projectGallery.addEventListener('wheel', event => {
+            if (
+                matchMedia('(max-width: 760px)').matches &&
+                Math.abs(event.deltaY) > Math.abs(event.deltaX)
+            ) {
+                return;
+            }
+
             const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
             event.preventDefault();
 
@@ -524,6 +623,9 @@
                 const index = Math.round(elements.projectGallery.scrollLeft / width);
                 if (index !== state.projectImageIndex) {
                     state.projectImageIndex = index;
+                    if (matchMedia('(max-width: 760px)').matches) {
+                        elements.projectGallery.children[index]?.scrollTo({ top: 0, behavior: 'auto' });
+                    }
                     updateProjectIndicator();
                 }
             });
@@ -579,11 +681,11 @@
         });
         addEventListener('popstate', () => {
             if (!state.entryComplete) {
-                clearProjectFromCurrentUrl();
+                resolveRequestedProjectId();
                 return;
             }
 
-            const projectId = Number(new URLSearchParams(location.search).get('project'));
+            const projectId = resolveRequestedProjectId();
             if (projectId) openProject(projectId, null, false);
             else closeProject(false);
         });
@@ -619,21 +721,19 @@
         cacheElements();
         initTheme();
         const skipEntry = document.documentElement.classList.contains('skip-entry');
-        const requestedProjectId = Number(new URLSearchParams(location.search).get('project')) || 0;
         if (skipEntry) {
             state.entryComplete = true;
             elements.entryGate.hidden = true;
             elements.entryGate.setAttribute('aria-hidden', 'true');
             elements.exhibitionMain.removeAttribute('aria-hidden');
             document.body.classList.remove('is-at-entry');
-        } else {
-            clearProjectFromCurrentUrl();
         }
         initEvents();
         await loadProjects();
         initOrbitHero();
-        if (skipEntry) {
-            if (requestedProjectId) openProject(requestedProjectId, null, false);
+        const requestedProjectId = resolveRequestedProjectId();
+        if (state.entryComplete) {
+            if (requestedProjectId) openRequestedProjectFromUrl();
         } else {
             elements.entryGate.focus({ preventScroll: true });
         }

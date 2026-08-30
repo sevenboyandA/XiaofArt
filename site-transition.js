@@ -30,7 +30,7 @@
 
         setTimeout(() => {
             location.href = destination.href;
-        }, reducedMotion ? 0 : 480);
+        }, reducedMotion ? 0 : 320);
     }, { capture: true });
 
     addEventListener('pageshow', () => {

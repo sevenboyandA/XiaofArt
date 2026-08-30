@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const crypto = require('crypto');
 
 const root = path.resolve(__dirname, '..');
 const output = path.join(root, 'docs');
@@ -87,10 +88,21 @@ function pageMetadata({ title, description, pageUrl, imageUrl }) {
     ].join('\n');
 }
 
+function addAssetVersions(html) {
+    const versionedAssets = ['gallery.css', 'gallery-app.js', 'site-data.js', 'site-transition.js', 'page-shell.js'];
+    return versionedAssets.reduce((output, asset) => {
+        const assetPath = path.join(scratch, asset);
+        if (!fs.existsSync(assetPath)) return output;
+        const version = crypto.createHash('sha256').update(fs.readFileSync(assetPath)).digest('hex').slice(0, 10);
+        return output.replaceAll(`"${asset}"`, `"${asset}?v=${version}"`);
+    }, html);
+}
+
 function enhanceHtml(fileName, metadata) {
     const filePath = path.join(scratch, fileName);
     let html = fs.readFileSync(filePath, 'utf8');
     html = html.replace('</head>', `${pageMetadata(metadata)}\n</head>`);
+    html = addAssetVersions(html);
     fs.writeFileSync(filePath, html);
 }
 

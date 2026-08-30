@@ -400,6 +400,100 @@ window.XIAOFART_SITE_DATA = {
         "right",
         "left"
       ]
+    },
+    {
+      "id": 8,
+      "order": 7,
+      "title": "食物系列",
+      "category": "食物系列",
+      "description": "",
+      "creationDate": "2018-06-20",
+      "year": 2018,
+      "heroImage": "images/managed/project-8/image-1784535516665-1.jpg",
+      "coverImage": "images/managed/project-8/image-1784535516665-1.jpg",
+      "gallery": [
+        "images/managed/project-8/image-1784535516665-1.jpg",
+        "images/managed/project-8/image-1784535516742-2.jpg",
+        "images/managed/project-8/image-1784535516778-3.jpg",
+        "images/managed/project-8/image-1784535516861-4.jpg",
+        "images/managed/project-8/image-1784535516911-5.jpg"
+      ],
+      "imageTitles": [
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "imageDescriptions": [
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "imageAlignments": [
+        "left",
+        "right",
+        "left",
+        "right",
+        "left"
+      ]
+    },
+    {
+      "id": 9,
+      "order": 8,
+      "title": "突破次元壁",
+      "category": "突破次元壁",
+      "description": "",
+      "creationDate": "2020-10-11",
+      "year": 2020,
+      "heroImage": "images/managed/project-9/image-1784535584402-1.jpg",
+      "coverImage": "images/managed/project-9/image-1784535584402-1.jpg",
+      "gallery": [
+        "images/managed/project-9/image-1784535584402-1.jpg",
+        "images/managed/project-9/image-1784535584462-2.jpg",
+        "images/managed/project-9/image-1784535584528-3.jpg",
+        "images/managed/project-9/image-1784535584801-9.jpg",
+        "images/managed/project-9/image-1784535584564-4.jpg",
+        "images/managed/project-9/image-1784535584625-5.jpg",
+        "images/managed/project-9/image-1784535584670-6.jpg",
+        "images/managed/project-9/image-1784535584711-7.jpg",
+        "images/managed/project-9/image-1784535584765-8.jpg"
+      ],
+      "imageTitles": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "imageDescriptions": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "imageAlignments": [
+        "left",
+        "right",
+        "left",
+        "left",
+        "right",
+        "left",
+        "right",
+        "left",
+        "right"
+      ]
     }
   ]
 };

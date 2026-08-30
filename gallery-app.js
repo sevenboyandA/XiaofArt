@@ -29,6 +29,49 @@
         return normalized.startsWith('images/') && /\.(jpe?g|png|gif|webp)$/i.test(normalized) ? normalized : fallback;
     }
 
+    function loadArtworkImage(image, force = false) {
+        if (!image) return;
+        const source = image.dataset.src;
+        if (!source) return;
+        if (!force && ['loading', 'loaded'].includes(image.dataset.loadState)) return;
+
+        const container = image.closest('button, .orbit-cover');
+        image.dataset.loadState = 'loading';
+        image.dataset.retryCount = force ? '0' : (image.dataset.retryCount || '0');
+        container?.classList.remove('is-load-error');
+
+        image.onload = () => {
+            image.dataset.loadState = 'loaded';
+            container?.classList.remove('is-load-error');
+        };
+        image.onerror = () => {
+            const retryCount = Number(image.dataset.retryCount || 0);
+            if (retryCount < 1) {
+                image.dataset.retryCount = String(retryCount + 1);
+                image.dataset.loadState = 'idle';
+                window.setTimeout(() => loadArtworkImage(image), 320);
+                return;
+            }
+            image.dataset.loadState = 'error';
+            container?.classList.add('is-load-error');
+        };
+
+        const retryCount = Number(image.dataset.retryCount || 0);
+        image.src = retryCount > 0
+            ? `${source}${source.includes('?') ? '&' : '?'}xiaofart_retry=${Date.now()}`
+            : source;
+    }
+
+    function primeProjectImages(centerIndex, radius = 1) {
+        if (!elements.projectGallery) return;
+        const start = Math.max(0, centerIndex - radius);
+        const end = Math.min(elements.projectGallery.children.length - 1, centerIndex + radius);
+        for (let index = start; index <= end; index += 1) {
+            const image = elements.projectGallery.children[index]?.querySelector('img[data-src]');
+            loadArtworkImage(image);
+        }
+    }
+
     function normalizeProject(project, index) {
         const gallery = (Array.isArray(project.gallery) ? project.gallery : [])
             .map(path => sanitizeImagePath(path))
@@ -254,7 +297,7 @@
             card.tabIndex = distance <= 2 ? 0 : -1;
 
             const image = card.querySelector('img[data-src]');
-            if (distance <= 3 && image && !image.src) image.src = image.dataset.src;
+            if (distance <= 3) loadArtworkImage(image);
         });
 
         const project = state.projects[state.orbitIndex];
@@ -357,9 +400,9 @@
         figure.classList.toggle('is-active', imageIndex === 0);
         button.type = 'button';
         button.setAttribute('aria-label', `全屏查看：${title}`);
-        image.src = src;
+        image.dataset.src = src;
         image.alt = title;
-        image.loading = imageIndex === 0 ? 'eager' : 'lazy';
+        image.loading = 'eager';
         image.fetchPriority = imageIndex === 0 ? 'high' : 'low';
         image.decoding = 'async';
         const count = `${String(imageIndex + 1).padStart(2, '0')} / ${String(project.gallery.length).padStart(2, '0')}`;
@@ -387,7 +430,14 @@
         `;
         button.append(image);
         figure.append(button, mobileProgress, caption);
-        button.addEventListener('click', () => openLightbox(imageIndex));
+        button.addEventListener('click', () => {
+            if (image.dataset.loadState === 'error') {
+                loadArtworkImage(image, true);
+                return;
+            }
+            openLightbox(imageIndex);
+        });
+        if (imageIndex <= 1) loadArtworkImage(image);
         return figure;
     }
 
@@ -420,6 +470,7 @@
         const project = state.projects[state.activeProjectIndex];
         if (!project?.gallery.length) return;
         state.projectImageIndex = Math.max(0, Math.min(project.gallery.length - 1, index));
+        primeProjectImages(state.projectImageIndex);
         if (matchMedia('(max-width: 760px)').matches) {
             elements.projectGallery.children[state.projectImageIndex]?.scrollTo({ top: 0, behavior: 'auto' });
         }
@@ -655,6 +706,7 @@
                 const index = Math.round(elements.projectGallery.scrollLeft / width);
                 if (index !== state.projectImageIndex) {
                     state.projectImageIndex = index;
+                    primeProjectImages(index);
                     if (matchMedia('(max-width: 760px)').matches) {
                         elements.projectGallery.children[index]?.scrollTo({ top: 0, behavior: 'auto' });
                     }

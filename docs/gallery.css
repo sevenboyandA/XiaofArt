@@ -108,6 +108,7 @@ body.home-gallery{height:100svh;overflow:hidden}
 }
 .project-image.is-active{opacity:1;transform:none}
 .project-image button{position:relative;grid-row:1;align-self:stretch;width:100%;height:auto;min-width:0;min-height:0;overflow:hidden;transition:transform .6s var(--ease)}
+.project-image button.is-load-error::after{content:"图片暂时未能加载 · 点击重试";position:absolute;inset:0;display:grid;place-items:center;padding:1rem;color:var(--muted);background:var(--surface);font-size:.7rem;letter-spacing:.08em;cursor:pointer}
 .project-image.is-left button{grid-column:1/span 5;transform:translateX(clamp(40px,5vw,100px))}
 .project-image.is-left figcaption{grid-column:8/-1;grid-row:1;transform:translateX(-30px)}
 .project-image.is-right button{grid-column:8/-1;transform:translateX(clamp(-100px,-5vw,-40px))}

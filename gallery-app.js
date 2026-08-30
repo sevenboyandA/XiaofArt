@@ -17,6 +17,8 @@
     let orbitMotionTimer = 0;
     let lightboxSwitchTimer = 0;
     let lightboxSwitchToken = 0;
+    let projectScrollTargetIndex = null;
+    let projectScrollSettleTimer = 0;
 
     function sanitizeImagePath(value, fallback = '') {
         const raw = String(value || '').trim().replace(/\\/g, '/');
@@ -284,6 +286,8 @@
     }
 
     function resetProjectScroll() {
+        clearTimeout(projectScrollSettleTimer);
+        projectScrollTargetIndex = null;
         elements.projectDialog.scrollTop = 0;
         elements.projectDialog.scrollLeft = 0;
         elements.projectGallery.scrollLeft = 0;
@@ -420,10 +424,18 @@
             elements.projectGallery.children[state.projectImageIndex]?.scrollTo({ top: 0, behavior: 'auto' });
         }
         updateProjectIndicator();
+        const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const scrollBehavior = reducedMotion ? 'auto' : behavior;
+        projectScrollTargetIndex = state.projectImageIndex;
+        clearTimeout(projectScrollSettleTimer);
         elements.projectGallery.scrollTo({
             left: state.projectImageIndex * elements.projectGallery.clientWidth,
-            behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : behavior
+            behavior: scrollBehavior
         });
+        projectScrollSettleTimer = setTimeout(() => {
+            projectScrollTargetIndex = null;
+            projectScrollSettleTimer = 0;
+        }, scrollBehavior === 'auto' ? 40 : 700);
     }
 
     function escapeHtml(value) {
@@ -525,6 +537,8 @@
         let orbitTouchStartX = 0;
         let orbitTouchStartY = 0;
         let orbitWheelLocked = false;
+        let orbitWheelReleaseTimer = 0;
+        let orbitSuppressClickUntil = 0;
         let projectWheelLocked = false;
         let projectWheelReleaseTimer = 0;
         let projectScrollFrame = 0;
@@ -542,6 +556,7 @@
         });
         elements.entryGate.addEventListener('pointerup', enterExhibition);
         elements.orbitTrack?.addEventListener('click', event => {
+            if (performance.now() < orbitSuppressClickUntil) return;
             const card = event.target.closest('.orbit-card');
             if (!card) return;
             const index = Number(card.dataset.index);
@@ -564,10 +579,14 @@
             const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
             if (Math.abs(delta) < 10) return;
             event.preventDefault();
+            clearTimeout(orbitWheelReleaseTimer);
+            orbitWheelReleaseTimer = setTimeout(() => {
+                orbitWheelLocked = false;
+                orbitWheelReleaseTimer = 0;
+            }, 280);
             if (orbitWheelLocked) return;
             orbitWheelLocked = true;
             rotateOrbit(delta > 0 ? 1 : -1);
-            setTimeout(() => { orbitWheelLocked = false; }, 420);
         }, { passive: false });
         elements.orbitScene?.addEventListener('touchstart', event => {
             if (event.touches.length !== 1) return;
@@ -579,7 +598,10 @@
             if (!touch) return;
             const deltaX = touch.clientX - orbitTouchStartX;
             const deltaY = touch.clientY - orbitTouchStartY;
-            if (Math.abs(deltaX) > 48 && Math.abs(deltaX) > Math.abs(deltaY)) rotateOrbit(deltaX < 0 ? 1 : -1);
+            if (Math.abs(deltaX) > 48 && Math.abs(deltaX) > Math.abs(deltaY)) {
+                orbitSuppressClickUntil = performance.now() + 450;
+                rotateOrbit(deltaX < 0 ? 1 : -1);
+            }
         }, { passive: true });
         addEventListener('resize', () => {
             cancelAnimationFrame(resizeFrame);
@@ -608,7 +630,8 @@
             clearTimeout(projectWheelReleaseTimer);
             projectWheelReleaseTimer = setTimeout(() => {
                 projectWheelLocked = false;
-            }, 180);
+                projectWheelReleaseTimer = 0;
+            }, 300);
 
             if (Math.abs(delta) < 8) return;
             if (projectWheelLocked) return;
@@ -620,6 +643,15 @@
             projectScrollFrame = requestAnimationFrame(() => {
                 const width = elements.projectGallery.clientWidth;
                 if (!width) return;
+                if (projectScrollTargetIndex !== null) {
+                    const targetLeft = projectScrollTargetIndex * width;
+                    if (Math.abs(elements.projectGallery.scrollLeft - targetLeft) <= 2) {
+                        clearTimeout(projectScrollSettleTimer);
+                        projectScrollTargetIndex = null;
+                        projectScrollSettleTimer = 0;
+                    }
+                    return;
+                }
                 const index = Math.round(elements.projectGallery.scrollLeft / width);
                 if (index !== state.projectImageIndex) {
                     state.projectImageIndex = index;
@@ -629,6 +661,11 @@
                     updateProjectIndicator();
                 }
             });
+        }, { passive: true });
+        elements.projectGallery.addEventListener('touchstart', () => {
+            clearTimeout(projectScrollSettleTimer);
+            projectScrollTargetIndex = null;
+            projectScrollSettleTimer = 0;
         }, { passive: true });
         elements.previousProject.addEventListener('click', () => switchProject(-1));
         elements.nextProject.addEventListener('click', () => switchProject(1));

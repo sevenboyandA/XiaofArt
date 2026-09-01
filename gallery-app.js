@@ -262,10 +262,26 @@
                 { x: sign * Math.min(innerWidth * .49, 680), z: -250, rotate: sign * -70, scale: .61, opacity: .46, layer: 7, saturation: .58, brightness: .58 },
                 { x: sign * Math.min(innerWidth * .59, 820), z: -440, rotate: sign * -77, scale: .47, opacity: .16, layer: 3, saturation: .42, brightness: .45 }
             ];
-        return positions[Math.min(distance, positions.length - 1)];
+        const clamped = Math.min(distance, positions.length - 1);
+        const lowerIndex = Math.floor(clamped);
+        const upperIndex = Math.ceil(clamped);
+        const progress = clamped - lowerIndex;
+        const lower = positions[lowerIndex];
+        const upper = positions[upperIndex];
+        const mix = key => lower[key] + (upper[key] - lower[key]) * progress;
+        return {
+            x: mix('x'),
+            z: mix('z'),
+            rotate: mix('rotate'),
+            scale: mix('scale'),
+            opacity: mix('opacity'),
+            layer: Math.round(mix('layer')),
+            saturation: mix('saturation'),
+            brightness: mix('brightness')
+        };
     }
 
-    function updateOrbit(animate = true) {
+    function updateOrbit(animate = true, activePosition = state.orbitIndex) {
         if (!state.projects.length || !elements.orbitTrack) return;
         clearTimeout(orbitMotionTimer);
         if (animate) {
@@ -279,10 +295,10 @@
         }
         const cards = [...elements.orbitTrack.children];
         cards.forEach((card, index) => {
-            const offset = circularOffset(index, state.orbitIndex, cards.length);
+            const offset = circularOffset(index, activePosition, cards.length);
             const distance = Math.abs(offset);
             const position = getOrbitPosition(offset);
-            const hidden = distance > 3;
+            const hidden = distance > 3.15;
             card.style.setProperty('--orbit-x', `${position.x}px`);
             card.style.setProperty('--orbit-z', `${position.z}px`);
             card.style.setProperty('--orbit-rotate', `${position.rotate}deg`);
@@ -291,9 +307,10 @@
             card.style.setProperty('--orbit-layer', hidden ? 0 : position.layer);
             card.style.setProperty('--orbit-pointer', hidden ? 'none' : 'auto');
             card.style.transitionDuration = animate ? '' : '0s';
-            card.classList.toggle('is-active', offset === 0);
-            card.setAttribute('aria-current', offset === 0 ? 'true' : 'false');
-            card.setAttribute('aria-label', `${offset === 0 ? '打开' : '选择'}系列：${state.projects[index].title}`);
+            const isActive = index === state.orbitIndex;
+            card.classList.toggle('is-active', isActive);
+            card.setAttribute('aria-current', isActive ? 'true' : 'false');
+            card.setAttribute('aria-label', `${isActive ? '打开' : '选择'}系列：${state.projects[index].title}`);
             card.tabIndex = distance <= 2 ? 0 : -1;
 
             const image = card.querySelector('img[data-src]');
@@ -587,17 +604,36 @@
         let swipeStartY = 0;
         let orbitTouchStartX = 0;
         let orbitTouchStartY = 0;
-        let orbitWheelLocked = false;
         let orbitWheelReleaseTimer = 0;
         let orbitSuppressClickUntil = 0;
+        let orbitGestureOffset = 0;
         let projectInputSettleTimer = 0;
         let projectTouchActive = false;
+        let projectInputStartLeft = 0;
+        let projectInputDirection = 0;
         let projectScrollFrame = 0;
         let resizeFrame = 0;
+        const orbitGestureDistance = () => Math.max(180, Math.min(innerWidth * .46, 520));
+        const renderOrbitGesture = () => {
+            elements.orbitScene?.classList.add('is-interacting');
+            updateOrbit(false, state.orbitIndex + orbitGestureOffset);
+        };
+        const settleOrbitGesture = () => {
+            clearTimeout(orbitWheelReleaseTimer);
+            orbitWheelReleaseTimer = 0;
+            elements.orbitScene?.classList.remove('is-interacting');
+            const direction = Math.abs(orbitGestureOffset) >= .16 ? Math.sign(orbitGestureOffset) : 0;
+            orbitGestureOffset = 0;
+            direction ? rotateOrbit(direction) : updateOrbit();
+        };
         const beginProjectInput = () => {
             clearTimeout(projectScrollSettleTimer);
             projectScrollTargetIndex = null;
             projectScrollSettleTimer = 0;
+            if (!elements.projectGallery.classList.contains('is-user-scrolling')) {
+                projectInputStartLeft = elements.projectGallery.scrollLeft;
+                projectInputDirection = 0;
+            }
             elements.projectGallery.classList.add('is-user-scrolling');
         };
         const settleProjectInput = (delay = 140) => {
@@ -610,7 +646,15 @@
                 if (!width) return;
                 const project = state.projects[state.activeProjectIndex];
                 const lastIndex = Math.max(0, (project?.gallery.length || 1) - 1);
-                const index = Math.max(0, Math.min(lastIndex, Math.round(elements.projectGallery.scrollLeft / width)));
+                const distance = elements.projectGallery.scrollLeft - projectInputStartLeft;
+                const startIndex = Math.round(projectInputStartLeft / width);
+                const threshold = Math.min(width * .18, 160);
+                const direction = Math.abs(distance) >= threshold ? Math.sign(distance) : projectInputDirection;
+                const targetIndex = Math.abs(distance) >= threshold
+                    ? startIndex + direction
+                    : Math.round(elements.projectGallery.scrollLeft / width);
+                const index = Math.max(0, Math.min(lastIndex, targetIndex));
+                projectInputDirection = 0;
                 setProjectImage(index);
             }, delay);
         };
@@ -647,33 +691,51 @@
         elements.orbitPrevious?.addEventListener('click', () => rotateOrbit(-1));
         elements.orbitNext?.addEventListener('click', () => rotateOrbit(1));
         elements.orbitScene?.addEventListener('wheel', event => {
+            if (event.ctrlKey) return;
             const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-            if (Math.abs(delta) < 10) return;
+            if (Math.abs(delta) < .1) return;
             event.preventDefault();
+            const deltaScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+                ? 18
+                : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+                    ? orbitGestureDistance()
+                    : 1;
+            orbitGestureOffset = Math.max(-1, Math.min(1, orbitGestureOffset + delta * deltaScale / orbitGestureDistance()));
+            renderOrbitGesture();
             clearTimeout(orbitWheelReleaseTimer);
             orbitWheelReleaseTimer = setTimeout(() => {
-                orbitWheelLocked = false;
-                orbitWheelReleaseTimer = 0;
-            }, 280);
-            if (orbitWheelLocked) return;
-            orbitWheelLocked = true;
-            rotateOrbit(delta > 0 ? 1 : -1);
+                settleOrbitGesture();
+            }, 140);
         }, { passive: false });
         elements.orbitScene?.addEventListener('touchstart', event => {
             if (event.touches.length !== 1) return;
+            clearTimeout(orbitWheelReleaseTimer);
+            orbitGestureOffset = 0;
             orbitTouchStartX = event.touches[0].clientX;
             orbitTouchStartY = event.touches[0].clientY;
         }, { passive: true });
+        elements.orbitScene?.addEventListener('touchmove', event => {
+            const touch = event.touches[0];
+            if (!touch) return;
+            const deltaX = touch.clientX - orbitTouchStartX;
+            const deltaY = touch.clientY - orbitTouchStartY;
+            if (Math.abs(deltaX) <= Math.abs(deltaY) || Math.abs(deltaX) < 3) return;
+            event.preventDefault();
+            orbitGestureOffset = Math.max(-1, Math.min(1, -deltaX / orbitGestureDistance()));
+            renderOrbitGesture();
+        }, { passive: false });
         elements.orbitScene?.addEventListener('touchend', event => {
             const touch = event.changedTouches[0];
             if (!touch) return;
             const deltaX = touch.clientX - orbitTouchStartX;
             const deltaY = touch.clientY - orbitTouchStartY;
-            if (Math.abs(deltaX) > 48 && Math.abs(deltaX) > Math.abs(deltaY)) {
+            if (Math.abs(deltaX) > 3 && Math.abs(deltaX) > Math.abs(deltaY)) {
                 orbitSuppressClickUntil = performance.now() + 450;
-                rotateOrbit(deltaX < 0 ? 1 : -1);
+                orbitGestureOffset = Math.max(-1, Math.min(1, -deltaX / orbitGestureDistance()));
             }
+            settleOrbitGesture();
         }, { passive: true });
+        elements.orbitScene?.addEventListener('touchcancel', settleOrbitGesture, { passive: true });
         addEventListener('resize', () => {
             cancelAnimationFrame(resizeFrame);
             resizeFrame = requestAnimationFrame(() => {
@@ -706,6 +768,7 @@
                     ? elements.projectGallery.clientWidth
                     : 1;
             elements.projectGallery.scrollLeft += delta * deltaScale;
+            projectInputDirection = Math.sign(delta);
             settleProjectInput(130);
         }, { passive: false });
         elements.projectGallery.addEventListener('scroll', () => {
@@ -723,6 +786,8 @@
                     return;
                 }
                 const index = Math.round(elements.projectGallery.scrollLeft / width);
+                const gestureDistance = elements.projectGallery.scrollLeft - projectInputStartLeft;
+                if (Math.abs(gestureDistance) > 1) projectInputDirection = Math.sign(gestureDistance);
                 if (index !== state.projectImageIndex) {
                     state.projectImageIndex = index;
                     primeProjectImages(index);

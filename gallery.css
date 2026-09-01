@@ -91,6 +91,7 @@ body.home-gallery{height:100svh;overflow:hidden}
 .project-gallery::-webkit-scrollbar{display:none}
 .project-gallery.is-user-scrolling{scroll-snap-type:none;scroll-behavior:auto}
 .project-gallery.is-user-scrolling .project-image{opacity:1;transform:none;transition:none}
+.orbit-scene.is-interacting .orbit-card{transition:none!important}
 .project-image,
 .project-image:nth-child(n){
     flex:0 0 100%;

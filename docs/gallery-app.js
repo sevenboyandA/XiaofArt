@@ -590,10 +590,30 @@
         let orbitWheelLocked = false;
         let orbitWheelReleaseTimer = 0;
         let orbitSuppressClickUntil = 0;
-        let projectWheelLocked = false;
-        let projectWheelReleaseTimer = 0;
+        let projectInputSettleTimer = 0;
+        let projectTouchActive = false;
         let projectScrollFrame = 0;
         let resizeFrame = 0;
+        const beginProjectInput = () => {
+            clearTimeout(projectScrollSettleTimer);
+            projectScrollTargetIndex = null;
+            projectScrollSettleTimer = 0;
+            elements.projectGallery.classList.add('is-user-scrolling');
+        };
+        const settleProjectInput = (delay = 140) => {
+            clearTimeout(projectInputSettleTimer);
+            projectInputSettleTimer = setTimeout(() => {
+                projectInputSettleTimer = 0;
+                if (projectTouchActive) return;
+                elements.projectGallery.classList.remove('is-user-scrolling');
+                const width = elements.projectGallery.clientWidth;
+                if (!width) return;
+                const project = state.projects[state.activeProjectIndex];
+                const lastIndex = Math.max(0, (project?.gallery.length || 1) - 1);
+                const index = Math.max(0, Math.min(lastIndex, Math.round(elements.projectGallery.scrollLeft / width)));
+                setProjectImage(index);
+            }, delay);
+        };
         document.querySelectorAll('a[data-skip-entry]').forEach(link => {
             link.addEventListener('click', () => {
                 try { sessionStorage.setItem('xiaofart-skip-entry-once', '1'); } catch (error) {}
@@ -668,6 +688,7 @@
         });
         elements.projectDialog.addEventListener('click', event => { if (event.target === elements.projectDialog) closeProject(); });
         elements.projectGallery.addEventListener('wheel', event => {
+            if (event.ctrlKey) return;
             if (
                 matchMedia('(max-width: 760px)').matches &&
                 Math.abs(event.deltaY) > Math.abs(event.deltaX)
@@ -676,18 +697,16 @@
             }
 
             const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+            if (Math.abs(delta) < .1) return;
             event.preventDefault();
-
-            clearTimeout(projectWheelReleaseTimer);
-            projectWheelReleaseTimer = setTimeout(() => {
-                projectWheelLocked = false;
-                projectWheelReleaseTimer = 0;
-            }, 300);
-
-            if (Math.abs(delta) < 8) return;
-            if (projectWheelLocked) return;
-            projectWheelLocked = true;
-            setProjectImage(state.projectImageIndex + (delta > 0 ? 1 : -1));
+            beginProjectInput();
+            const deltaScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+                ? 18
+                : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+                    ? elements.projectGallery.clientWidth
+                    : 1;
+            elements.projectGallery.scrollLeft += delta * deltaScale;
+            settleProjectInput(130);
         }, { passive: false });
         elements.projectGallery.addEventListener('scroll', () => {
             cancelAnimationFrame(projectScrollFrame);
@@ -712,12 +731,22 @@
                     }
                     updateProjectIndicator();
                 }
+                if (elements.projectGallery.classList.contains('is-user-scrolling')) {
+                    settleProjectInput(projectTouchActive ? 220 : 130);
+                }
             });
         }, { passive: true });
         elements.projectGallery.addEventListener('touchstart', () => {
-            clearTimeout(projectScrollSettleTimer);
-            projectScrollTargetIndex = null;
-            projectScrollSettleTimer = 0;
+            projectTouchActive = true;
+            beginProjectInput();
+        }, { passive: true });
+        elements.projectGallery.addEventListener('touchend', () => {
+            projectTouchActive = false;
+            settleProjectInput(180);
+        }, { passive: true });
+        elements.projectGallery.addEventListener('touchcancel', () => {
+            projectTouchActive = false;
+            settleProjectInput(120);
         }, { passive: true });
         elements.previousProject.addEventListener('click', () => switchProject(-1));
         elements.nextProject.addEventListener('click', () => switchProject(1));

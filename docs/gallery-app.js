@@ -17,8 +17,9 @@
     let orbitMotionTimer = 0;
     let lightboxSwitchTimer = 0;
     let lightboxSwitchToken = 0;
-    let projectScrollTargetIndex = null;
-    let projectScrollSettleTimer = 0;
+    let orbitSwipeMotion = null;
+    let projectSwipeMotion = null;
+    let projectSuppressClickUntil = 0;
 
     function sanitizeImagePath(value, fallback = '') {
         const raw = String(value || '').trim().replace(/\\/g, '/');
@@ -70,6 +71,137 @@
             const image = elements.projectGallery.children[index]?.querySelector('img[data-src]');
             loadArtworkImage(image);
         }
+    }
+
+    function createSwipeMotion({ getIndex, getCount, getExtent, onRender, onCommit, onInteraction, loop = false }) {
+        let progress = 0;
+        let rawProgress = 0;
+        let velocity = 0;
+        let lastTime = 0;
+        let active = false;
+        let animating = false;
+        let animationFrame = 0;
+        let inputFrame = 0;
+
+        const cancelFrame = () => {
+            cancelAnimationFrame(animationFrame);
+            cancelAnimationFrame(inputFrame);
+            animationFrame = 0;
+            inputFrame = 0;
+        };
+        const scheduleInputRender = () => {
+            if (inputFrame) return;
+            inputFrame = requestAnimationFrame(() => {
+                inputFrame = 0;
+                onRender(progress);
+            });
+        };
+        const canMove = direction => {
+            if (loop) return getCount() > 1;
+            const index = getIndex();
+            return direction < 0 ? index > 0 : index < getCount() - 1;
+        };
+        const finish = direction => {
+            animating = false;
+            onInteraction(false);
+            if (direction) onCommit(direction);
+            progress = 0;
+            rawProgress = 0;
+            velocity = 0;
+            onRender(0);
+        };
+        const animate = (target, direction = 0) => {
+            cancelFrame();
+            active = false;
+            animating = true;
+            onInteraction(true);
+            const start = progress;
+            const change = target - start;
+            if (matchMedia('(prefers-reduced-motion: reduce)').matches || Math.abs(change) < .001) {
+                finish(direction);
+                return;
+            }
+            const startedAt = performance.now();
+            const duration = 260 + Math.min(180, Math.abs(change) * 180);
+            const tick = now => {
+                const elapsed = Math.min(1, (now - startedAt) / duration);
+                const eased = 1 - Math.pow(1 - elapsed, 4);
+                progress = start + change * eased;
+                onRender(progress);
+                if (elapsed < 1) {
+                    animationFrame = requestAnimationFrame(tick);
+                    return;
+                }
+                animationFrame = 0;
+                finish(direction);
+            };
+            animationFrame = requestAnimationFrame(tick);
+        };
+
+        return {
+            begin(time = performance.now()) {
+                if (active || animating) return;
+                cancelFrame();
+                active = true;
+                progress = 0;
+                rawProgress = 0;
+                velocity = 0;
+                lastTime = time;
+                onInteraction(true);
+                onRender(0);
+            },
+            move(deltaPixels, time = performance.now()) {
+                if (animating) return;
+                if (!active) this.begin(time);
+                if (!active) return;
+                const extent = Math.max(1, getExtent());
+                const deltaProgress = deltaPixels / extent;
+                const elapsed = Math.max(8, Math.min(48, time - lastTime || 16));
+                velocity = velocity * .35 + (deltaProgress / elapsed) * .65;
+                rawProgress = Math.max(-1, Math.min(1, rawProgress + deltaProgress));
+                const direction = Math.sign(rawProgress);
+                progress = direction && !canMove(direction) ? rawProgress * .22 : rawProgress;
+                lastTime = time;
+                scheduleInputRender();
+            },
+            release() {
+                if (!active) return;
+                const velocityThreshold = .42 / Math.max(1, getExtent());
+                const intended = Math.abs(progress) >= .15 || Math.abs(velocity) >= velocityThreshold
+                    ? Math.sign(progress || velocity)
+                    : 0;
+                const direction = intended && canMove(intended) ? intended : 0;
+                animate(direction, direction);
+            },
+            step(direction) {
+                if (animating) return;
+                const normalized = Math.sign(direction);
+                if (!normalized || !canMove(normalized)) {
+                    animate(0, 0);
+                    return;
+                }
+                cancelFrame();
+                active = false;
+                progress = 0;
+                rawProgress = 0;
+                velocity = 0;
+                onInteraction(false);
+                animate(normalized, normalized);
+            },
+            reset() {
+                cancelFrame();
+                active = false;
+                animating = false;
+                progress = 0;
+                rawProgress = 0;
+                velocity = 0;
+                onInteraction(false);
+                onRender(0);
+            },
+            get active() {
+                return active;
+            }
+        };
     }
 
     function normalizeProject(project, index) {
@@ -281,7 +413,17 @@
         };
     }
 
-    function updateOrbit(animate = true, activePosition = state.orbitIndex) {
+    function updateOrbitMeta() {
+        const project = state.projects[state.orbitIndex];
+        if (!project) return;
+        elements.orbitMeta.textContent = [project.category, project.year || 'Archive'].filter(Boolean).join(' · ');
+        elements.orbitActiveTitle.textContent = project.title;
+        elements.orbitDescription.textContent = project.description || '绘画、角色与视觉叙事。';
+        elements.orbitCurrent.textContent = String(state.orbitIndex + 1).padStart(2, '0');
+        elements.orbitOpenMobile?.setAttribute('aria-label', `查看系列：${project.title}`);
+    }
+
+    function updateOrbit(animate = true, activePosition = state.orbitIndex, continuous = false) {
         if (!state.projects.length || !elements.orbitTrack) return;
         clearTimeout(orbitMotionTimer);
         if (animate) {
@@ -306,7 +448,7 @@
             card.style.setProperty('--orbit-opacity', hidden ? 0 : position.opacity);
             card.style.setProperty('--orbit-layer', hidden ? 0 : position.layer);
             card.style.setProperty('--orbit-pointer', hidden ? 'none' : 'auto');
-            card.style.transitionDuration = animate ? '' : '0s';
+            card.style.transitionDuration = animate || continuous ? '' : '0s';
             const isActive = index === state.orbitIndex;
             card.classList.toggle('is-active', isActive);
             card.setAttribute('aria-current', isActive ? 'true' : 'false');
@@ -317,18 +459,14 @@
             if (distance <= 3) loadArtworkImage(image);
         });
 
-        const project = state.projects[state.orbitIndex];
-        elements.orbitMeta.textContent = [project.category, project.year || 'Archive'].filter(Boolean).join(' · ');
-        elements.orbitActiveTitle.textContent = project.title;
-        elements.orbitDescription.textContent = project.description || '绘画、角色与视觉叙事。';
-        elements.orbitCurrent.textContent = String(state.orbitIndex + 1).padStart(2, '0');
-        elements.orbitOpenMobile?.setAttribute('aria-label', `查看系列：${project.title}`);
+        if (!continuous) updateOrbitMeta();
 
-        if (!animate) requestAnimationFrame(() => cards.forEach(card => { card.style.transitionDuration = ''; }));
+        if (!animate && !continuous) requestAnimationFrame(() => cards.forEach(card => { card.style.transitionDuration = ''; }));
     }
 
     function rotateOrbitTo(index) {
         if (!state.projects.length) return;
+        orbitSwipeMotion?.reset();
         state.orbitIndex = (index + state.projects.length) % state.projects.length;
         updateOrbit();
     }
@@ -346,11 +484,8 @@
     }
 
     function resetProjectScroll() {
-        clearTimeout(projectScrollSettleTimer);
-        projectScrollTargetIndex = null;
         elements.projectDialog.scrollTop = 0;
         elements.projectDialog.scrollLeft = 0;
-        elements.projectGallery.scrollLeft = 0;
         elements.projectGallery.querySelectorAll('.project-image').forEach(figure => {
             figure.scrollTop = 0;
         });
@@ -448,6 +583,7 @@
         button.append(image);
         figure.append(button, mobileProgress, caption);
         button.addEventListener('click', () => {
+            if (performance.now() < projectSuppressClickUntil) return;
             if (image.dataset.loadState === 'error') {
                 loadArtworkImage(image, true);
                 return;
@@ -483,27 +619,46 @@
         nextMarker?.setAttribute('aria-current', 'true');
     }
 
+    function renderProjectPosition(progress = 0) {
+        const width = elements.projectGallery?.clientWidth || innerWidth;
+        const position = state.projectImageIndex + progress;
+        [...elements.projectGallery.children].forEach((figure, index) => {
+            const offset = index - position;
+            figure.style.transform = `translate3d(${offset * width}px,0,0)`;
+            figure.style.opacity = Math.abs(offset) <= 1.05 ? '1' : '0';
+            figure.style.pointerEvents = Math.abs(offset) < .5 ? 'auto' : 'none';
+            figure.style.zIndex = String(Math.max(0, 5 - Math.round(Math.abs(offset))));
+        });
+        primeProjectImages(Math.max(0, Math.round(position)));
+    }
+
+    function commitProjectImage(direction) {
+        const project = state.projects[state.activeProjectIndex];
+        if (!project?.gallery.length) return;
+        state.projectImageIndex = Math.max(0, Math.min(
+            project.gallery.length - 1,
+            state.projectImageIndex + direction
+        ));
+        primeProjectImages(state.projectImageIndex);
+        elements.projectGallery.children[state.projectImageIndex]?.scrollTo({ top: 0, behavior: 'auto' });
+        updateProjectIndicator();
+    }
+
     function setProjectImage(index, behavior = 'smooth') {
         const project = state.projects[state.activeProjectIndex];
         if (!project?.gallery.length) return;
-        state.projectImageIndex = Math.max(0, Math.min(project.gallery.length - 1, index));
-        primeProjectImages(state.projectImageIndex);
-        if (matchMedia('(max-width: 760px)').matches) {
-            elements.projectGallery.children[state.projectImageIndex]?.scrollTo({ top: 0, behavior: 'auto' });
+        const target = Math.max(0, Math.min(project.gallery.length - 1, index));
+        const difference = target - state.projectImageIndex;
+        if (behavior !== 'auto' && Math.abs(difference) === 1 && projectSwipeMotion) {
+            projectSwipeMotion.step(difference);
+            return;
         }
+        projectSwipeMotion?.reset();
+        state.projectImageIndex = target;
+        primeProjectImages(target);
+        elements.projectGallery.children[target]?.scrollTo({ top: 0, behavior: 'auto' });
         updateProjectIndicator();
-        const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const scrollBehavior = reducedMotion ? 'auto' : behavior;
-        projectScrollTargetIndex = state.projectImageIndex;
-        clearTimeout(projectScrollSettleTimer);
-        elements.projectGallery.scrollTo({
-            left: state.projectImageIndex * elements.projectGallery.clientWidth,
-            behavior: scrollBehavior
-        });
-        projectScrollSettleTimer = setTimeout(() => {
-            projectScrollTargetIndex = null;
-            projectScrollSettleTimer = 0;
-        }, scrollBehavior === 'auto' ? 40 : 700);
+        renderProjectPosition(0);
     }
 
     function escapeHtml(value) {
@@ -512,6 +667,7 @@
 
     function closeProject(updateUrl = true) {
         if (!elements.projectDialog.open) return;
+        projectSwipeMotion?.reset();
         clearTimeout(projectCloseTimer);
         elements.projectDialog.classList.remove('is-visible');
         projectCloseTimer = setTimeout(() => {
@@ -604,68 +760,43 @@
         let swipeStartY = 0;
         let orbitTouchStartX = 0;
         let orbitTouchStartY = 0;
+        let orbitTouchLastX = 0;
+        let orbitTouchAxis = '';
         let orbitWheelReleaseTimer = 0;
         let orbitSuppressClickUntil = 0;
-        let orbitGestureOffset = 0;
-        let projectInputSettleTimer = 0;
-        let projectTouchActive = false;
-        let projectInputStartLeft = 0;
-        let projectInputDirection = 0;
-        let projectScrollFrame = 0;
+        let projectTouchStartX = 0;
+        let projectTouchStartY = 0;
+        let projectTouchLastX = 0;
+        let projectTouchAxis = '';
+        let projectWheelReleaseTimer = 0;
         let resizeFrame = 0;
         const orbitGestureDistance = () => Math.max(180, Math.min(innerWidth * .46, 520));
-        const renderOrbitGesture = () => {
-            elements.orbitScene?.classList.add('is-interacting');
-            updateOrbit(false, state.orbitIndex + orbitGestureOffset);
-        };
-        const settleOrbitGesture = () => {
-            clearTimeout(orbitWheelReleaseTimer);
-            orbitWheelReleaseTimer = 0;
-            elements.orbitScene?.classList.remove('is-interacting');
-            const direction = Math.abs(orbitGestureOffset) >= .16 ? Math.sign(orbitGestureOffset) : 0;
-            orbitGestureOffset = 0;
-            direction ? rotateOrbit(direction) : updateOrbit();
-        };
-        const beginProjectInput = () => {
-            clearTimeout(projectScrollSettleTimer);
-            projectScrollTargetIndex = null;
-            projectScrollSettleTimer = 0;
-            if (!elements.projectGallery.classList.contains('is-user-scrolling')) {
-                projectInputStartLeft = elements.projectGallery.scrollLeft;
-                projectInputDirection = 0;
-            }
-            elements.projectGallery.classList.add('is-user-scrolling');
-        };
-        const clampProjectGestureLeft = value => {
-            const width = elements.projectGallery.clientWidth;
-            if (!width) return value;
-            const maximumScroll = Math.max(0, elements.projectGallery.scrollWidth - width);
-            const minimum = Math.max(0, projectInputStartLeft - width);
-            const maximum = Math.min(maximumScroll, projectInputStartLeft + width);
-            return Math.max(minimum, Math.min(maximum, value));
-        };
-        const settleProjectInput = (delay = 140) => {
-            clearTimeout(projectInputSettleTimer);
-            projectInputSettleTimer = setTimeout(() => {
-                projectInputSettleTimer = 0;
-                if (projectTouchActive) return;
-                elements.projectGallery.classList.remove('is-user-scrolling');
-                const width = elements.projectGallery.clientWidth;
-                if (!width) return;
-                const project = state.projects[state.activeProjectIndex];
-                const lastIndex = Math.max(0, (project?.gallery.length || 1) - 1);
-                const distance = elements.projectGallery.scrollLeft - projectInputStartLeft;
-                const startIndex = Math.round(projectInputStartLeft / width);
-                const threshold = Math.min(width * .18, 160);
-                const direction = Math.abs(distance) >= threshold ? Math.sign(distance) : projectInputDirection;
-                const targetIndex = Math.abs(distance) >= threshold
-                    ? startIndex + direction
-                    : Math.round(elements.projectGallery.scrollLeft / width);
-                const index = Math.max(0, Math.min(lastIndex, targetIndex));
-                projectInputDirection = 0;
-                setProjectImage(index);
-            }, delay);
-        };
+        const wheelPixels = (event, extent) => event.deltaMode === WheelEvent.DOM_DELTA_LINE
+            ? 18
+            : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+                ? extent
+                : 1;
+
+        orbitSwipeMotion = createSwipeMotion({
+            getIndex: () => state.orbitIndex,
+            getCount: () => state.projects.length,
+            getExtent: orbitGestureDistance,
+            onRender: progress => updateOrbit(false, state.orbitIndex + progress, true),
+            onCommit: direction => {
+                state.orbitIndex = (state.orbitIndex + direction + state.projects.length) % state.projects.length;
+                updateOrbitMeta();
+            },
+            onInteraction: active => elements.orbitScene?.classList.toggle('is-interacting', active),
+            loop: true
+        });
+        projectSwipeMotion = createSwipeMotion({
+            getIndex: () => state.projectImageIndex,
+            getCount: () => state.projects[state.activeProjectIndex]?.gallery.length || 0,
+            getExtent: () => elements.projectGallery.clientWidth || innerWidth,
+            onRender: renderProjectPosition,
+            onCommit: commitProjectImage,
+            onInteraction: active => elements.projectGallery.classList.toggle('is-interacting', active)
+        });
         document.querySelectorAll('a[data-skip-entry]').forEach(link => {
             link.addEventListener('click', () => {
                 try { sessionStorage.setItem('xiaofart-skip-entry-once', '1'); } catch (error) {}
@@ -703,51 +834,48 @@
             const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
             if (Math.abs(delta) < .1) return;
             event.preventDefault();
-            const deltaScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
-                ? 18
-                : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-                    ? orbitGestureDistance()
-                    : 1;
-            orbitGestureOffset = Math.max(-1, Math.min(1, orbitGestureOffset + delta * deltaScale / orbitGestureDistance()));
-            renderOrbitGesture();
+            orbitSwipeMotion.begin();
+            orbitSwipeMotion.move(delta * wheelPixels(event, orbitGestureDistance()));
             clearTimeout(orbitWheelReleaseTimer);
-            orbitWheelReleaseTimer = setTimeout(() => {
-                settleOrbitGesture();
-            }, 140);
+            orbitWheelReleaseTimer = setTimeout(() => orbitSwipeMotion.release(), 110);
         }, { passive: false });
         elements.orbitScene?.addEventListener('touchstart', event => {
             if (event.touches.length !== 1) return;
             clearTimeout(orbitWheelReleaseTimer);
-            orbitGestureOffset = 0;
             orbitTouchStartX = event.touches[0].clientX;
             orbitTouchStartY = event.touches[0].clientY;
+            orbitTouchLastX = orbitTouchStartX;
+            orbitTouchAxis = '';
         }, { passive: true });
         elements.orbitScene?.addEventListener('touchmove', event => {
             const touch = event.touches[0];
             if (!touch) return;
             const deltaX = touch.clientX - orbitTouchStartX;
             const deltaY = touch.clientY - orbitTouchStartY;
-            if (Math.abs(deltaX) <= Math.abs(deltaY) || Math.abs(deltaX) < 3) return;
-            event.preventDefault();
-            orbitGestureOffset = Math.max(-1, Math.min(1, -deltaX / orbitGestureDistance()));
-            renderOrbitGesture();
-        }, { passive: false });
-        elements.orbitScene?.addEventListener('touchend', event => {
-            const touch = event.changedTouches[0];
-            if (!touch) return;
-            const deltaX = touch.clientX - orbitTouchStartX;
-            const deltaY = touch.clientY - orbitTouchStartY;
-            if (Math.abs(deltaX) > 3 && Math.abs(deltaX) > Math.abs(deltaY)) {
-                orbitSuppressClickUntil = performance.now() + 450;
-                orbitGestureOffset = Math.max(-1, Math.min(1, -deltaX / orbitGestureDistance()));
+            if (!orbitTouchAxis && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
+                orbitTouchAxis = Math.abs(deltaX) > Math.abs(deltaY) ? 'x' : 'y';
+                if (orbitTouchAxis === 'x') orbitSwipeMotion.begin();
             }
-            settleOrbitGesture();
+            if (orbitTouchAxis !== 'x') return;
+            event.preventDefault();
+            orbitSwipeMotion.move(orbitTouchLastX - touch.clientX);
+            orbitTouchLastX = touch.clientX;
+        }, { passive: false });
+        elements.orbitScene?.addEventListener('touchend', () => {
+            if (orbitTouchAxis === 'x') {
+                orbitSuppressClickUntil = performance.now() + 450;
+                orbitSwipeMotion.release();
+            }
+            orbitTouchAxis = '';
         }, { passive: true });
-        elements.orbitScene?.addEventListener('touchcancel', settleOrbitGesture, { passive: true });
+        elements.orbitScene?.addEventListener('touchcancel', () => {
+            orbitTouchAxis = '';
+            orbitSwipeMotion.reset();
+        }, { passive: true });
         addEventListener('resize', () => {
             cancelAnimationFrame(resizeFrame);
             resizeFrame = requestAnimationFrame(() => {
-                updateOrbit(false);
+                orbitSwipeMotion?.reset();
                 if (elements.projectDialog.open) setProjectImage(state.projectImageIndex, 'auto');
             });
         }, { passive: true });
@@ -769,67 +897,43 @@
             const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
             if (Math.abs(delta) < .1) return;
             event.preventDefault();
-            beginProjectInput();
-            const deltaScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
-                ? 18
-                : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-                    ? elements.projectGallery.clientWidth
-                    : 1;
-            elements.projectGallery.scrollLeft = clampProjectGestureLeft(
-                elements.projectGallery.scrollLeft + delta * deltaScale
-            );
-            projectInputDirection = Math.sign(delta);
-            settleProjectInput(130);
+            projectSwipeMotion.begin();
+            projectSwipeMotion.move(delta * wheelPixels(event, elements.projectGallery.clientWidth));
+            clearTimeout(projectWheelReleaseTimer);
+            projectWheelReleaseTimer = setTimeout(() => projectSwipeMotion.release(), 110);
         }, { passive: false });
-        elements.projectGallery.addEventListener('scroll', () => {
-            cancelAnimationFrame(projectScrollFrame);
-            projectScrollFrame = requestAnimationFrame(() => {
-                const width = elements.projectGallery.clientWidth;
-                if (!width) return;
-                if (projectScrollTargetIndex !== null) {
-                    const targetLeft = projectScrollTargetIndex * width;
-                    if (Math.abs(elements.projectGallery.scrollLeft - targetLeft) <= 2) {
-                        clearTimeout(projectScrollSettleTimer);
-                        projectScrollTargetIndex = null;
-                        projectScrollSettleTimer = 0;
-                    }
-                    return;
-                }
-                if (elements.projectGallery.classList.contains('is-user-scrolling')) {
-                    const clampedLeft = clampProjectGestureLeft(elements.projectGallery.scrollLeft);
-                    if (Math.abs(clampedLeft - elements.projectGallery.scrollLeft) > .5) {
-                        elements.projectGallery.scrollLeft = clampedLeft;
-                        settleProjectInput(projectTouchActive ? 220 : 130);
-                        return;
-                    }
-                }
-                const index = Math.round(elements.projectGallery.scrollLeft / width);
-                const gestureDistance = elements.projectGallery.scrollLeft - projectInputStartLeft;
-                if (Math.abs(gestureDistance) > 1) projectInputDirection = Math.sign(gestureDistance);
-                if (index !== state.projectImageIndex) {
-                    state.projectImageIndex = index;
-                    primeProjectImages(index);
-                    if (matchMedia('(max-width: 760px)').matches) {
-                        elements.projectGallery.children[index]?.scrollTo({ top: 0, behavior: 'auto' });
-                    }
-                    updateProjectIndicator();
-                }
-                if (elements.projectGallery.classList.contains('is-user-scrolling')) {
-                    settleProjectInput(projectTouchActive ? 220 : 130);
-                }
-            });
+        elements.projectGallery.addEventListener('touchstart', event => {
+            if (event.touches.length !== 1) return;
+            clearTimeout(projectWheelReleaseTimer);
+            projectTouchStartX = event.touches[0].clientX;
+            projectTouchStartY = event.touches[0].clientY;
+            projectTouchLastX = projectTouchStartX;
+            projectTouchAxis = '';
         }, { passive: true });
-        elements.projectGallery.addEventListener('touchstart', () => {
-            projectTouchActive = true;
-            beginProjectInput();
-        }, { passive: true });
+        elements.projectGallery.addEventListener('touchmove', event => {
+            const touch = event.touches[0];
+            if (!touch) return;
+            const deltaX = touch.clientX - projectTouchStartX;
+            const deltaY = touch.clientY - projectTouchStartY;
+            if (!projectTouchAxis && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
+                projectTouchAxis = Math.abs(deltaX) > Math.abs(deltaY) ? 'x' : 'y';
+                if (projectTouchAxis === 'x') projectSwipeMotion.begin();
+            }
+            if (projectTouchAxis !== 'x') return;
+            event.preventDefault();
+            projectSwipeMotion.move(projectTouchLastX - touch.clientX);
+            projectTouchLastX = touch.clientX;
+        }, { passive: false });
         elements.projectGallery.addEventListener('touchend', () => {
-            projectTouchActive = false;
-            settleProjectInput(180);
+            if (projectTouchAxis === 'x') {
+                projectSuppressClickUntil = performance.now() + 450;
+                projectSwipeMotion.release();
+            }
+            projectTouchAxis = '';
         }, { passive: true });
         elements.projectGallery.addEventListener('touchcancel', () => {
-            projectTouchActive = false;
-            settleProjectInput(120);
+            projectTouchAxis = '';
+            projectSwipeMotion.reset();
         }, { passive: true });
         elements.previousProject.addEventListener('click', () => switchProject(-1));
         elements.nextProject.addEventListener('click', () => switchProject(1));

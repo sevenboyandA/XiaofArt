@@ -75,26 +75,21 @@ body.home-gallery{height:100svh;overflow:hidden}
 .project-content{position:relative;height:calc(100svh - 70px);display:grid;grid-template-rows:minmax(0,1fr) 64px;padding:0;overflow:hidden}
 .project-gallery{
     grid-row:1;
+    position:relative;
     width:100%;
     height:100%;
     min-height:0;
-    display:flex;
-    gap:0;
-    overflow-x:auto;
-    overflow-y:hidden;
-    scroll-snap-type:x mandatory;
-    scroll-behavior:smooth;
-    scrollbar-width:none;
-    overscroll-behavior-x:contain;
-    touch-action:pan-x;
+    overflow:hidden;
+    overscroll-behavior:contain;
+    touch-action:pan-y;
+    contain:layout paint;
 }
-.project-gallery::-webkit-scrollbar{display:none}
-.project-gallery.is-user-scrolling{scroll-snap-type:none;scroll-behavior:auto}
-.project-gallery.is-user-scrolling .project-image{opacity:1;transform:none;transition:none}
 .orbit-scene.is-interacting .orbit-card{transition:none!important}
+.project-gallery.is-interacting .project-image{will-change:transform}
 .project-image,
 .project-image:nth-child(n){
-    flex:0 0 100%;
+    position:absolute;
+    inset:0;
     width:100%;
     height:100%;
     display:grid;
@@ -103,13 +98,10 @@ body.home-gallery{height:100svh;overflow:hidden}
     column-gap:clamp(1.5rem,4vw,5rem);
     align-items:center;
     padding:clamp(2rem,4vh,3.5rem) clamp(1rem,7vw,8rem);
-    scroll-snap-align:start;
-    scroll-snap-stop:always;
-    opacity:.36;
-    transform:scale(.985);
-    transition:opacity .45s ease,transform .65s var(--ease);
+    opacity:1;
+    transform:translate3d(100%,0,0);
+    transition:none;
 }
-.project-image.is-active{opacity:1;transform:none}
 .project-image button{position:relative;grid-row:1;align-self:stretch;width:100%;height:auto;min-width:0;min-height:0;overflow:hidden;transition:transform .6s var(--ease)}
 .project-image button.is-load-error::after{content:"图片暂时未能加载 · 点击重试";position:absolute;inset:0;display:grid;place-items:center;padding:1rem;color:var(--muted);background:var(--surface);font-size:.7rem;letter-spacing:.08em;cursor:pointer}
 .project-image.is-left button{grid-column:1/span 5;transform:translateX(clamp(40px,5vw,100px))}
@@ -153,8 +145,8 @@ body.home-gallery{height:100svh;overflow:hidden}
 @media(max-width:760px){
     .dialog-header{height:62px;padding-right:1rem;padding-left:1rem}
     .project-content{height:calc(100svh - 62px);grid-template-rows:minmax(0,1fr)}
-    .project-gallery{grid-row:1;touch-action:pan-x pan-y}
-    .project-image,.project-image:nth-child(n){height:100%;grid-template-columns:1fr;grid-template-rows:calc(100svh - 116px) 54px auto;row-gap:0;padding:0;align-items:stretch;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:none;touch-action:pan-x pan-y}
+    .project-gallery{grid-row:1;touch-action:pan-y}
+    .project-image,.project-image:nth-child(n){height:100%;grid-template-columns:1fr;grid-template-rows:calc(100svh - 116px) 54px auto;row-gap:0;padding:0;align-items:stretch;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:none;touch-action:pan-y}
     .project-image::-webkit-scrollbar{display:none}
     .project-image.is-left button,.project-image.is-right button,.project-image.is-fallback.is-left button,.project-image.is-fallback.is-right button{grid-column:1;grid-row:1;transform:none}
     .project-image img{inset:1.25rem 1rem;width:calc(100% - 2rem);height:calc(100% - 2.5rem)}

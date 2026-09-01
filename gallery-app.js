@@ -636,6 +636,14 @@
             }
             elements.projectGallery.classList.add('is-user-scrolling');
         };
+        const clampProjectGestureLeft = value => {
+            const width = elements.projectGallery.clientWidth;
+            if (!width) return value;
+            const maximumScroll = Math.max(0, elements.projectGallery.scrollWidth - width);
+            const minimum = Math.max(0, projectInputStartLeft - width);
+            const maximum = Math.min(maximumScroll, projectInputStartLeft + width);
+            return Math.max(minimum, Math.min(maximum, value));
+        };
         const settleProjectInput = (delay = 140) => {
             clearTimeout(projectInputSettleTimer);
             projectInputSettleTimer = setTimeout(() => {
@@ -767,7 +775,9 @@
                 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
                     ? elements.projectGallery.clientWidth
                     : 1;
-            elements.projectGallery.scrollLeft += delta * deltaScale;
+            elements.projectGallery.scrollLeft = clampProjectGestureLeft(
+                elements.projectGallery.scrollLeft + delta * deltaScale
+            );
             projectInputDirection = Math.sign(delta);
             settleProjectInput(130);
         }, { passive: false });
@@ -784,6 +794,14 @@
                         projectScrollSettleTimer = 0;
                     }
                     return;
+                }
+                if (elements.projectGallery.classList.contains('is-user-scrolling')) {
+                    const clampedLeft = clampProjectGestureLeft(elements.projectGallery.scrollLeft);
+                    if (Math.abs(clampedLeft - elements.projectGallery.scrollLeft) > .5) {
+                        elements.projectGallery.scrollLeft = clampedLeft;
+                        settleProjectInput(projectTouchActive ? 220 : 130);
+                        return;
+                    }
                 }
                 const index = Math.round(elements.projectGallery.scrollLeft / width);
                 const gestureDistance = elements.projectGallery.scrollLeft - projectInputStartLeft;

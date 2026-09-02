@@ -1079,7 +1079,7 @@
             motion: projectSwipeMotion,
             getExtent: () => projectViewportWidth || innerWidth,
             shouldHandleWheel: event => !(
-                matchMedia('(max-width: 760px)').matches &&
+                matchMedia('(max-width: 900px)').matches &&
                 Math.abs(event.deltaY) > Math.abs(event.deltaX)
             ),
             onHorizontalRelease: () => { projectSuppressClickUntil = performance.now() + 450; }

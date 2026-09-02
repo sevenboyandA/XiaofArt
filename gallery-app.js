@@ -124,6 +124,7 @@
         let lastTime = 0;
         let active = false;
         let animating = false;
+        let animationDirection = 0;
         let animationFrame = 0;
         let inputFrame = 0;
 
@@ -146,7 +147,9 @@
             return direction < 0 ? index > 0 : index < getCount() - 1;
         };
         const finish = direction => {
+            active = false;
             animating = false;
+            animationDirection = 0;
             onInteraction(false);
             if (direction) onCommit(direction);
             progress = 0;
@@ -158,6 +161,7 @@
             cancelFrame();
             active = false;
             animating = true;
+            animationDirection = direction;
             onInteraction(true);
             const start = progress;
             const change = target - start;
@@ -166,7 +170,7 @@
                 return;
             }
             const startedAt = performance.now();
-            const duration = 220 + Math.min(90, Math.abs(change) * 110);
+            const duration = 150 + Math.min(60, Math.abs(change) * 80);
             const tick = now => {
                 const elapsed = Math.min(1, (now - startedAt) / duration);
                 const eased = 1 - Math.pow(1 - elapsed, 4);
@@ -184,7 +188,12 @@
 
         return {
             begin(time = performance.now()) {
-                if (active || animating) return;
+                if (active) return;
+                if (animating) {
+                    const pendingDirection = animationDirection;
+                    cancelFrame();
+                    finish(pendingDirection);
+                }
                 cancelFrame();
                 active = true;
                 progress = 0;
@@ -218,7 +227,11 @@
                 animate(direction, direction);
             },
             step(direction) {
-                if (animating) return;
+                if (animating) {
+                    const pendingDirection = animationDirection;
+                    cancelFrame();
+                    finish(pendingDirection);
+                }
                 const normalized = Math.sign(direction);
                 if (!normalized || !canMove(normalized)) {
                     animate(0, 0);
@@ -236,6 +249,7 @@
                 cancelFrame();
                 active = false;
                 animating = false;
+                animationDirection = 0;
                 progress = 0;
                 rawProgress = 0;
                 velocity = 0;
@@ -263,7 +277,11 @@
         let lastX = 0;
         let axis = '';
         let wheelReleaseTimer = 0;
-        let wheelDrainUntil = 0;
+        let wheelCommitted = false;
+        let wheelTravel = 0;
+        let wheelLastEventAt = 0;
+        let wheelCommittedAt = 0;
+        let wheelTailFloor = Infinity;
 
         const wheelScale = event => event.deltaMode === WheelEvent.DOM_DELTA_LINE
             ? 18
@@ -278,24 +296,55 @@
 
             event.preventDefault();
             const now = performance.now();
-            if (now < wheelDrainUntil) {
-                // Trackpad momentum belongs to the gesture that just committed.
-                wheelDrainUntil = now + 180;
+            const scaledDelta = delta * wheelScale(event);
+            const magnitude = Math.abs(scaledDelta);
+            const eventGap = wheelLastEventAt ? now - wheelLastEventAt : Infinity;
+            const startsAfterPause = eventGap > 72 && magnitude >= 1;
+            const startsWithNewImpulse = now - wheelCommittedAt > 48 && magnitude >= Math.max(6, wheelTailFloor * 1.8);
+
+            if (wheelCommitted && !startsAfterPause && !startsWithNewImpulse) {
+                // Keep the decaying momentum tail inside the gesture that already committed.
+                wheelTailFloor = Math.min(wheelTailFloor, magnitude);
+                wheelLastEventAt = now;
                 return;
             }
 
+            if (wheelCommitted) {
+                wheelCommitted = false;
+                wheelTravel = 0;
+                wheelTailFloor = Infinity;
+            }
+
             motion.begin(now);
-            motion.move(delta * wheelScale(event), now);
+            motion.move(scaledDelta, now);
+            wheelTravel += scaledDelta;
+            wheelLastEventAt = now;
             clearTimeout(wheelReleaseTimer);
+            if (Math.abs(wheelTravel) >= Math.max(24, getExtent() * .15)) {
+                motion.release();
+                wheelCommitted = true;
+                wheelCommittedAt = now;
+                wheelTailFloor = magnitude;
+                wheelTravel = 0;
+                return;
+            }
             wheelReleaseTimer = setTimeout(() => {
                 motion.release();
-                wheelDrainUntil = performance.now() + 320;
-            }, 110);
+                wheelCommitted = true;
+                wheelCommittedAt = performance.now();
+                wheelTailFloor = Math.min(wheelTailFloor, magnitude);
+                wheelTravel = 0;
+            }, 72);
         }, { passive: false });
 
         element.addEventListener('pointerdown', event => {
             if (!event.isPrimary || event.button !== 0) return;
             clearTimeout(wheelReleaseTimer);
+            wheelCommitted = false;
+            wheelTravel = 0;
+            wheelLastEventAt = 0;
+            wheelCommittedAt = 0;
+            wheelTailFloor = Infinity;
             pointerId = event.pointerId;
             startX = event.clientX;
             startY = event.clientY;

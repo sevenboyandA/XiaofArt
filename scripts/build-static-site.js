@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const crypto = require('crypto');
+const { buildDisplayImages } = require('./build-display-images');
 
 const root = path.resolve(__dirname, '..');
 const output = path.join(root, 'docs');
@@ -64,6 +65,11 @@ function collectImages(projects) {
     return [...images].sort();
 }
 
+function displayImagePath(imagePath) {
+    if (!/\.(?:jpe?g|png|webp)$/i.test(imagePath)) return imagePath;
+    return imagePath.replace(/^images\//, 'images/display/').replace(/\.(?:jpe?g|png|webp)$/i, '.webp');
+}
+
 function copy(relativePath) {
     const source = path.join(root, relativePath);
     const target = path.join(scratch, relativePath);
@@ -115,7 +121,8 @@ function buildErrorPage(siteUrl) {
 <body><main><p>404 · PAGE NOT FOUND</p><h1>这幅画不在这里。</h1><a href="${home}">返回作品展 →</a></main></body></html>\n`;
 }
 
-function main() {
+async function main() {
+    await buildDisplayImages();
     const siteUrl = normalizeSiteUrl(process.env.SITE_URL);
     const projects = readProjects();
     const images = collectImages(projects);
@@ -125,7 +132,13 @@ function main() {
     fs.mkdirSync(scratch, { recursive: true });
     try {
         for (const file of publicFiles) copy(file);
-        for (const image of images) copy(image);
+        for (const image of images) {
+            copy(image);
+            const displayImage = displayImagePath(image);
+            if (displayImage === image) continue;
+            if (!fs.existsSync(path.join(root, displayImage))) throw new Error(`展示图片不存在: ${displayImage}`);
+            copy(displayImage);
+        }
 
         enhanceHtml('index.html', {
             title: '林小肥作品展',
@@ -155,4 +168,7 @@ function main() {
     }
 }
 
-main();
+main().catch(error => {
+    console.error('静态站构建失败:', error);
+    process.exit(1);
+});

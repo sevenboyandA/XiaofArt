@@ -24,7 +24,16 @@ for (const project of projects) {
         if (image) images.add(String(image).replace(/\\/g, '/'));
     }
 }
-for (const image of images) if (!exists(image)) failures.push(`图片引用缺失: ${image}`);
+function displayImagePath(imagePath) {
+    if (!/\.(?:jpe?g|png|webp)$/i.test(imagePath)) return imagePath;
+    return imagePath.replace(/^images\//, 'images/display/').replace(/\.(?:jpe?g|png|webp)$/i, '.webp');
+}
+for (const image of images) {
+    if (!exists(image)) failures.push(`图片引用缺失: ${image}`);
+    const displayImage = displayImagePath(image);
+    if (displayImage === image) continue;
+    if (!exists(displayImage)) failures.push(`展示图片引用缺失: ${displayImage}`);
+}
 
 for (const page of ['index.html', 'about.html', '404.html']) {
     const html = fs.readFileSync(path.join(releaseDir, page), 'utf8');

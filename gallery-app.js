@@ -20,6 +20,10 @@
     let orbitSwipeMotion = null;
     let projectSwipeMotion = null;
     let projectSuppressClickUntil = 0;
+    let orbitCards = [];
+    let projectFigures = [];
+    let projectRenderedIndices = new Set();
+    let projectViewportWidth = 0;
 
     function sanitizeImagePath(value, fallback = '') {
         const raw = String(value || '').trim().replace(/\\/g, '/');
@@ -28,6 +32,16 @@
         if (parts.some(part => part === '.' || part === '..')) return fallback;
         const normalized = parts.join('/');
         return normalized.startsWith('images/') && /\.(jpe?g|png|gif|webp)$/i.test(normalized) ? normalized : fallback;
+    }
+
+    function displayImagePath(source) {
+        if (!/\.(?:jpe?g|png|webp)$/i.test(source)) return source;
+        return source.replace(/^images\//, 'images/display/').replace(/\.(?:jpe?g|png|webp)$/i, '.webp');
+    }
+
+    function prepareArtworkImage(image, source) {
+        image.dataset.src = displayImagePath(source);
+        image.dataset.fallbackSrc = source;
     }
 
     function loadArtworkImage(image, force = false) {
@@ -46,6 +60,13 @@
             container?.classList.remove('is-load-error');
         };
         image.onerror = () => {
+            const fallbackSource = image.dataset.fallbackSrc;
+            if (fallbackSource && image.dataset.usingFallback !== 'true') {
+                image.dataset.usingFallback = 'true';
+                image.dataset.loadState = 'loading';
+                image.src = fallbackSource;
+                return;
+            }
             const retryCount = Number(image.dataset.retryCount || 0);
             if (retryCount < 1) {
                 image.dataset.retryCount = String(retryCount + 1);
@@ -58,19 +79,42 @@
         };
 
         const retryCount = Number(image.dataset.retryCount || 0);
-        image.src = retryCount > 0
-            ? `${source}${source.includes('?') ? '&' : '?'}xiaofart_retry=${Date.now()}`
+        const requestedSource = image.dataset.usingFallback === 'true'
+            ? image.dataset.fallbackSrc
             : source;
+        image.src = retryCount > 0
+            ? `${requestedSource}${requestedSource.includes('?') ? '&' : '?'}xiaofart_retry=${Date.now()}`
+            : requestedSource;
     }
 
-    function primeProjectImages(centerIndex, radius = 1) {
-        if (!elements.projectGallery) return;
-        const start = Math.max(0, centerIndex - radius);
-        const end = Math.min(elements.projectGallery.children.length - 1, centerIndex + radius);
-        for (let index = start; index <= end; index += 1) {
-            const image = elements.projectGallery.children[index]?.querySelector('img[data-src]');
-            loadArtworkImage(image);
-        }
+    function releaseArtworkImage(image) {
+        if (!image || !image.hasAttribute('src')) return;
+        image.onload = null;
+        image.onerror = null;
+        image.removeAttribute('src');
+        image.dataset.loadState = 'idle';
+        image.dataset.retryCount = '0';
+        image.dataset.usingFallback = 'false';
+        image.closest('button, .orbit-cover')?.classList.remove('is-load-error');
+    }
+
+    function syncProjectImages(centerIndex, radius = 1) {
+        projectFigures.forEach((figure, index) => {
+            const image = figure.querySelector('img[data-src]');
+            if (Math.abs(index - centerIndex) <= radius) loadArtworkImage(image);
+            else releaseArtworkImage(image);
+        });
+    }
+
+    function syncOrbitImages() {
+        if (!orbitCards.length) return;
+        const radius = innerWidth < 760 ? 1 : 2;
+        orbitCards.forEach((card, index) => {
+            const image = card.querySelector('img[data-src]');
+            const distance = Math.abs(circularOffset(index, state.orbitIndex, orbitCards.length));
+            if (state.entryComplete && distance <= radius) loadArtworkImage(image);
+            else releaseArtworkImage(image);
+        });
     }
 
     function createSwipeMotion({ getIndex, getCount, getExtent, onRender, onCommit, onInteraction, loop = false }) {
@@ -122,7 +166,7 @@
                 return;
             }
             const startedAt = performance.now();
-            const duration = 260 + Math.min(180, Math.abs(change) * 180);
+            const duration = 220 + Math.min(90, Math.abs(change) * 110);
             const tick = now => {
                 const elapsed = Math.min(1, (now - startedAt) / duration);
                 const eased = 1 - Math.pow(1 - elapsed, 4);
@@ -204,6 +248,93 @@
         };
     }
 
+    function bindSwipeSurface({
+        element,
+        motion,
+        getExtent,
+        shouldHandleWheel = () => true,
+        onHorizontalRelease = () => {}
+    }) {
+        if (!element || !motion) return;
+
+        let pointerId = null;
+        let startX = 0;
+        let startY = 0;
+        let lastX = 0;
+        let axis = '';
+        let wheelReleaseTimer = 0;
+        let wheelDrainUntil = 0;
+
+        const wheelScale = event => event.deltaMode === WheelEvent.DOM_DELTA_LINE
+            ? 18
+            : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+                ? Math.max(1, getExtent())
+                : 1;
+
+        element.addEventListener('wheel', event => {
+            if (event.ctrlKey || !shouldHandleWheel(event)) return;
+            const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+            if (Math.abs(delta) < .1) return;
+
+            event.preventDefault();
+            const now = performance.now();
+            if (now < wheelDrainUntil) {
+                // Trackpad momentum belongs to the gesture that just committed.
+                wheelDrainUntil = now + 180;
+                return;
+            }
+
+            motion.begin(now);
+            motion.move(delta * wheelScale(event), now);
+            clearTimeout(wheelReleaseTimer);
+            wheelReleaseTimer = setTimeout(() => {
+                motion.release();
+                wheelDrainUntil = performance.now() + 320;
+            }, 110);
+        }, { passive: false });
+
+        element.addEventListener('pointerdown', event => {
+            if (!event.isPrimary || event.button !== 0) return;
+            clearTimeout(wheelReleaseTimer);
+            pointerId = event.pointerId;
+            startX = event.clientX;
+            startY = event.clientY;
+            lastX = startX;
+            axis = '';
+        });
+
+        element.addEventListener('pointermove', event => {
+            if (event.pointerId !== pointerId) return;
+            const deltaX = event.clientX - startX;
+            const deltaY = event.clientY - startY;
+            if (!axis && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 10) {
+                axis = Math.abs(deltaX) > Math.abs(deltaY) ? 'x' : 'y';
+                if (axis === 'x') {
+                    element.setPointerCapture?.(pointerId);
+                    motion.begin(event.timeStamp || performance.now());
+                }
+            }
+            if (axis !== 'x') return;
+            event.preventDefault();
+            motion.move(lastX - event.clientX, event.timeStamp || performance.now());
+            lastX = event.clientX;
+        });
+
+        const endPointer = (event, cancelled = false) => {
+            if (event.pointerId !== pointerId) return;
+            if (axis === 'x') {
+                onHorizontalRelease();
+                cancelled ? motion.reset() : motion.release();
+            }
+            if (element.hasPointerCapture?.(pointerId)) element.releasePointerCapture(pointerId);
+            pointerId = null;
+            axis = '';
+        };
+
+        element.addEventListener('pointerup', event => endPointer(event));
+        element.addEventListener('pointercancel', event => endPointer(event, true));
+    }
+
     function normalizeProject(project, index) {
         const gallery = (Array.isArray(project.gallery) ? project.gallery : [])
             .map(path => sanitizeImagePath(path))
@@ -256,6 +387,7 @@
             projectTitle: document.getElementById('projectTitle'),
             projectDescription: document.getElementById('projectDescription'),
             projectGallery: document.getElementById('projectGallery'),
+            galleryStatus: document.getElementById('galleryStatus'),
             projectSlideIndicator: document.getElementById('projectSlideIndicator'),
             previousProject: document.getElementById('previousProject'),
             nextProject: document.getElementById('nextProject'),
@@ -367,7 +499,7 @@
         book.className = 'orbit-book';
         spine.className = 'orbit-spine';
         cover.className = 'orbit-cover';
-        image.dataset.src = project.heroImage;
+        prepareArtworkImage(image, project.heroImage);
         image.alt = project.title;
         image.decoding = 'async';
 
@@ -425,43 +557,55 @@
 
     function updateOrbit(animate = true, activePosition = state.orbitIndex, continuous = false) {
         if (!state.projects.length || !elements.orbitTrack) return;
-        clearTimeout(orbitMotionTimer);
-        if (animate) {
-            elements.orbitScene?.classList.add('is-moving');
-            orbitMotionTimer = setTimeout(() => {
+        if (!continuous) {
+            clearTimeout(orbitMotionTimer);
+            if (animate) {
+                elements.orbitScene?.classList.add('is-moving');
+                orbitMotionTimer = setTimeout(() => {
+                    elements.orbitScene?.classList.remove('is-moving');
+                    orbitMotionTimer = 0;
+                }, 420);
+            } else {
                 elements.orbitScene?.classList.remove('is-moving');
-                orbitMotionTimer = 0;
-            }, 680);
-        } else {
-            elements.orbitScene?.classList.remove('is-moving');
+            }
         }
-        const cards = [...elements.orbitTrack.children];
-        cards.forEach((card, index) => {
-            const offset = circularOffset(index, activePosition, cards.length);
+        const renderRadius = innerWidth < 760 ? 1.15 : 2.15;
+        orbitCards.forEach((card, index) => {
+            const offset = circularOffset(index, activePosition, orbitCards.length);
             const distance = Math.abs(offset);
+            const hidden = distance > renderRadius;
+            const wasHidden = card.dataset.orbitHidden === 'true';
+            if (hidden && wasHidden) return;
+            if (hidden !== wasHidden || !card.dataset.orbitHidden) {
+                card.dataset.orbitHidden = String(hidden);
+                card.classList.toggle('is-rendered', !hidden);
+                card.style.visibility = hidden ? 'hidden' : 'visible';
+                card.style.pointerEvents = hidden ? 'none' : 'auto';
+            }
+            if (hidden) {
+                card.style.opacity = '0';
+                return;
+            }
             const position = getOrbitPosition(offset);
-            const hidden = distance > 3.15;
-            card.style.setProperty('--orbit-x', `${position.x}px`);
-            card.style.setProperty('--orbit-z', `${position.z}px`);
-            card.style.setProperty('--orbit-rotate', `${position.rotate}deg`);
-            card.style.setProperty('--orbit-scale', position.scale);
-            card.style.setProperty('--orbit-opacity', hidden ? 0 : position.opacity);
-            card.style.setProperty('--orbit-layer', hidden ? 0 : position.layer);
-            card.style.setProperty('--orbit-pointer', hidden ? 'none' : 'auto');
-            card.style.transitionDuration = animate || continuous ? '' : '0s';
+            card.style.transform = `translate(-50%,-50%) translate3d(${position.x}px,0,${position.z}px) rotateY(${position.rotate}deg) scale(${position.scale})`;
+            card.style.opacity = String(position.opacity);
+            card.style.zIndex = String(position.layer);
+            if (continuous) return;
+
+            card.style.transitionDuration = animate ? '' : '0s';
             const isActive = index === state.orbitIndex;
             card.classList.toggle('is-active', isActive);
             card.setAttribute('aria-current', isActive ? 'true' : 'false');
             card.setAttribute('aria-label', `${isActive ? '打开' : '选择'}系列：${state.projects[index].title}`);
             card.tabIndex = distance <= 2 ? 0 : -1;
-
-            const image = card.querySelector('img[data-src]');
-            if (distance <= 3) loadArtworkImage(image);
         });
 
-        if (!continuous) updateOrbitMeta();
+        if (!continuous) {
+            syncOrbitImages();
+            updateOrbitMeta();
+        }
 
-        if (!animate && !continuous) requestAnimationFrame(() => cards.forEach(card => { card.style.transitionDuration = ''; }));
+        if (!animate && !continuous) requestAnimationFrame(() => orbitCards.forEach(card => { card.style.transitionDuration = ''; }));
     }
 
     function rotateOrbitTo(index) {
@@ -478,7 +622,8 @@
     function initOrbitHero() {
         if (!state.projects.length || !elements.orbitTrack) return;
         state.orbitIndex = 0;
-        elements.orbitTrack.replaceChildren(...state.projects.map(createOrbitCard));
+        orbitCards = state.projects.map(createOrbitCard);
+        elements.orbitTrack.replaceChildren(...orbitCards);
         elements.orbitTotal.textContent = String(state.projects.length).padStart(2, '0');
         updateOrbit(false);
     }
@@ -509,16 +654,20 @@
         elements.projectMeta.textContent = [project.category, project.year, `${project.gallery.length} 幅作品`].filter(Boolean).join(' · ');
         elements.projectTitle.textContent = project.title;
         elements.projectDescription.textContent = project.description || '这一组作品收录了创作过程中的片段、角色与想象。';
-        elements.projectGallery.replaceChildren(...project.gallery.map((src, imageIndex) => createProjectImage(project, src, imageIndex)));
+        projectFigures = project.gallery.map((src, imageIndex) => createProjectImage(project, src, imageIndex));
+        projectRenderedIndices.clear();
+        elements.projectGallery.replaceChildren(...projectFigures);
         state.projectImageIndex = 0;
         renderProjectIndicator(project.gallery.length);
         updateProjectIndicator();
+        syncProjectImages(0);
         elements.previousProject.disabled = state.projects.length < 2;
         elements.nextProject.disabled = state.projects.length < 2;
         resetProjectScroll();
 
         const show = () => {
             if (!elements.projectDialog.open) elements.projectDialog.showModal();
+            projectViewportWidth = elements.projectGallery.clientWidth || innerWidth;
             resetProjectScroll();
             elements.projectDialog.dataset.triggerId = trigger?.closest('.work-card')?.dataset.projectId || '';
             elements.projectDialog.dataset.triggerIndex = trigger?.dataset.index || '';
@@ -529,7 +678,7 @@
                 elements.projectDialog.classList.add('is-visible');
             });
         };
-        document.startViewTransition ? document.startViewTransition(show) : show();
+        show();
         if (updateUrl) updateHistory(project.id);
         return true;
     }
@@ -552,7 +701,7 @@
         figure.classList.toggle('is-active', imageIndex === 0);
         button.type = 'button';
         button.setAttribute('aria-label', `全屏查看：${title}`);
-        image.dataset.src = src;
+        prepareArtworkImage(image, src);
         image.alt = title;
         image.loading = 'eager';
         image.fetchPriority = imageIndex === 0 ? 'high' : 'low';
@@ -590,7 +739,6 @@
             }
             openLightbox(imageIndex);
         });
-        if (imageIndex <= 1) loadArtworkImage(image);
         return figure;
     }
 
@@ -608,8 +756,13 @@
     }
 
     function updateProjectIndicator() {
-        elements.projectGallery.querySelector('.project-image.is-active')?.classList.remove('is-active');
-        elements.projectGallery.children[state.projectImageIndex]?.classList.add('is-active');
+        [...elements.projectGallery.children].forEach((figure, index) => {
+            const isActive = index === state.projectImageIndex;
+            figure.classList.toggle('is-active', isActive);
+            figure.setAttribute('aria-hidden', String(!isActive));
+            const button = figure.querySelector('button');
+            if (button) button.tabIndex = isActive ? 0 : -1;
+        });
 
         const currentMarker = elements.projectSlideIndicator.querySelector('[aria-current="true"]');
         currentMarker?.classList.remove('is-active');
@@ -617,19 +770,48 @@
         const nextMarker = elements.projectSlideIndicator.children[state.projectImageIndex];
         nextMarker?.classList.add('is-active');
         nextMarker?.setAttribute('aria-current', 'true');
+
+        const project = state.projects[state.activeProjectIndex];
+        if (project && elements.galleryStatus) {
+            const imageTitle = String(project.imageTitles[state.projectImageIndex] || project.title).trim();
+            elements.galleryStatus.textContent = `${project.title}，第 ${state.projectImageIndex + 1} 幅，共 ${project.gallery.length} 幅，${imageTitle}`;
+        }
     }
 
     function renderProjectPosition(progress = 0) {
-        const width = elements.projectGallery?.clientWidth || innerWidth;
+        const width = projectViewportWidth || innerWidth;
         const position = state.projectImageIndex + progress;
-        [...elements.projectGallery.children].forEach((figure, index) => {
+        const nextRenderedIndices = new Set([state.projectImageIndex]);
+        const direction = Math.sign(progress);
+        if (direction) {
+            const adjacent = state.projectImageIndex + direction;
+            if (adjacent >= 0 && adjacent < projectFigures.length) nextRenderedIndices.add(adjacent);
+        }
+
+        projectRenderedIndices.forEach(index => {
+            if (nextRenderedIndices.has(index)) return;
+            const figure = projectFigures[index];
+            if (!figure) return;
+            figure.classList.remove('is-rendered');
+            figure.style.visibility = 'hidden';
+            figure.style.opacity = '0';
+            figure.style.pointerEvents = 'none';
+        });
+
+        nextRenderedIndices.forEach(index => {
+            const figure = projectFigures[index];
+            if (!figure) return;
             const offset = index - position;
+            if (!figure.classList.contains('is-rendered')) {
+                figure.classList.add('is-rendered');
+                figure.style.visibility = 'visible';
+            }
             figure.style.transform = `translate3d(${offset * width}px,0,0)`;
-            figure.style.opacity = Math.abs(offset) <= 1.05 ? '1' : '0';
+            figure.style.opacity = '1';
             figure.style.pointerEvents = Math.abs(offset) < .5 ? 'auto' : 'none';
             figure.style.zIndex = String(Math.max(0, 5 - Math.round(Math.abs(offset))));
         });
-        primeProjectImages(Math.max(0, Math.round(position)));
+        projectRenderedIndices = nextRenderedIndices;
     }
 
     function commitProjectImage(direction) {
@@ -639,7 +821,7 @@
             project.gallery.length - 1,
             state.projectImageIndex + direction
         ));
-        primeProjectImages(state.projectImageIndex);
+        syncProjectImages(state.projectImageIndex);
         elements.projectGallery.children[state.projectImageIndex]?.scrollTo({ top: 0, behavior: 'auto' });
         updateProjectIndicator();
     }
@@ -655,7 +837,7 @@
         }
         projectSwipeMotion?.reset();
         state.projectImageIndex = target;
-        primeProjectImages(target);
+        syncProjectImages(target);
         elements.projectGallery.children[target]?.scrollTo({ top: 0, behavior: 'auto' });
         updateProjectIndicator();
         renderProjectPosition(0);
@@ -705,9 +887,14 @@
         state.lightboxIndex = index;
         const token = ++lightboxSwitchToken;
         const src = project.gallery[index];
+        const displaySrc = displayImagePath(src);
         const commit = () => {
             if (token !== lightboxSwitchToken) return;
-            elements.lightboxImage.src = src;
+            elements.lightboxImage.onerror = () => {
+                elements.lightboxImage.onerror = null;
+                elements.lightboxImage.src = src;
+            };
+            elements.lightboxImage.src = displaySrc;
             elements.lightboxImage.alt = project.imageTitles[index] || project.title;
             const imageTitle = project.imageTitles[index] || '';
             const imageDescription = project.imageDescriptions[index] || '';
@@ -728,8 +915,11 @@
             lightboxSwitchTimer = setTimeout(commit, 110);
         };
         preload.onload = swap;
-        preload.onerror = swap;
-        preload.src = src;
+        preload.onerror = () => {
+            preload.onerror = swap;
+            preload.src = src;
+        };
+        preload.src = displaySrc;
         if (preload.complete) swap();
     }
 
@@ -743,6 +933,7 @@
     function enterExhibition() {
         if (state.entryComplete) return;
         state.entryComplete = true;
+        syncOrbitImages();
         elements.entryGate.classList.add('is-leaving');
         elements.entryGate.setAttribute('aria-hidden', 'true');
         elements.exhibitionMain.removeAttribute('aria-hidden');
@@ -758,24 +949,9 @@
     function initEvents() {
         let swipeStartX = 0;
         let swipeStartY = 0;
-        let orbitTouchStartX = 0;
-        let orbitTouchStartY = 0;
-        let orbitTouchLastX = 0;
-        let orbitTouchAxis = '';
-        let orbitWheelReleaseTimer = 0;
         let orbitSuppressClickUntil = 0;
-        let projectTouchStartX = 0;
-        let projectTouchStartY = 0;
-        let projectTouchLastX = 0;
-        let projectTouchAxis = '';
-        let projectWheelReleaseTimer = 0;
         let resizeFrame = 0;
         const orbitGestureDistance = () => Math.max(180, Math.min(innerWidth * .46, 520));
-        const wheelPixels = (event, extent) => event.deltaMode === WheelEvent.DOM_DELTA_LINE
-            ? 18
-            : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-                ? extent
-                : 1;
 
         orbitSwipeMotion = createSwipeMotion({
             getIndex: () => state.orbitIndex,
@@ -784,7 +960,7 @@
             onRender: progress => updateOrbit(false, state.orbitIndex + progress, true),
             onCommit: direction => {
                 state.orbitIndex = (state.orbitIndex + direction + state.projects.length) % state.projects.length;
-                updateOrbitMeta();
+                updateOrbit(false);
             },
             onInteraction: active => elements.orbitScene?.classList.toggle('is-interacting', active),
             loop: true
@@ -792,7 +968,7 @@
         projectSwipeMotion = createSwipeMotion({
             getIndex: () => state.projectImageIndex,
             getCount: () => state.projects[state.activeProjectIndex]?.gallery.length || 0,
-            getExtent: () => elements.projectGallery.clientWidth || innerWidth,
+            getExtent: () => projectViewportWidth || innerWidth,
             onRender: renderProjectPosition,
             onCommit: commitProjectImage,
             onInteraction: active => elements.projectGallery.classList.toggle('is-interacting', active)
@@ -829,52 +1005,16 @@
         });
         elements.orbitPrevious?.addEventListener('click', () => rotateOrbit(-1));
         elements.orbitNext?.addEventListener('click', () => rotateOrbit(1));
-        elements.orbitScene?.addEventListener('wheel', event => {
-            if (event.ctrlKey) return;
-            const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-            if (Math.abs(delta) < .1) return;
-            event.preventDefault();
-            orbitSwipeMotion.begin();
-            orbitSwipeMotion.move(delta * wheelPixels(event, orbitGestureDistance()));
-            clearTimeout(orbitWheelReleaseTimer);
-            orbitWheelReleaseTimer = setTimeout(() => orbitSwipeMotion.release(), 110);
-        }, { passive: false });
-        elements.orbitScene?.addEventListener('touchstart', event => {
-            if (event.touches.length !== 1) return;
-            clearTimeout(orbitWheelReleaseTimer);
-            orbitTouchStartX = event.touches[0].clientX;
-            orbitTouchStartY = event.touches[0].clientY;
-            orbitTouchLastX = orbitTouchStartX;
-            orbitTouchAxis = '';
-        }, { passive: true });
-        elements.orbitScene?.addEventListener('touchmove', event => {
-            const touch = event.touches[0];
-            if (!touch) return;
-            const deltaX = touch.clientX - orbitTouchStartX;
-            const deltaY = touch.clientY - orbitTouchStartY;
-            if (!orbitTouchAxis && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
-                orbitTouchAxis = Math.abs(deltaX) > Math.abs(deltaY) ? 'x' : 'y';
-                if (orbitTouchAxis === 'x') orbitSwipeMotion.begin();
-            }
-            if (orbitTouchAxis !== 'x') return;
-            event.preventDefault();
-            orbitSwipeMotion.move(orbitTouchLastX - touch.clientX);
-            orbitTouchLastX = touch.clientX;
-        }, { passive: false });
-        elements.orbitScene?.addEventListener('touchend', () => {
-            if (orbitTouchAxis === 'x') {
-                orbitSuppressClickUntil = performance.now() + 450;
-                orbitSwipeMotion.release();
-            }
-            orbitTouchAxis = '';
-        }, { passive: true });
-        elements.orbitScene?.addEventListener('touchcancel', () => {
-            orbitTouchAxis = '';
-            orbitSwipeMotion.reset();
-        }, { passive: true });
+        bindSwipeSurface({
+            element: elements.orbitScene,
+            motion: orbitSwipeMotion,
+            getExtent: orbitGestureDistance,
+            onHorizontalRelease: () => { orbitSuppressClickUntil = performance.now() + 450; }
+        });
         addEventListener('resize', () => {
             cancelAnimationFrame(resizeFrame);
             resizeFrame = requestAnimationFrame(() => {
+                projectViewportWidth = elements.projectGallery?.clientWidth || innerWidth;
                 orbitSwipeMotion?.reset();
                 if (elements.projectDialog.open) setProjectImage(state.projectImageIndex, 'auto');
             });
@@ -885,56 +1025,16 @@
             closeProject();
         });
         elements.projectDialog.addEventListener('click', event => { if (event.target === elements.projectDialog) closeProject(); });
-        elements.projectGallery.addEventListener('wheel', event => {
-            if (event.ctrlKey) return;
-            if (
+        bindSwipeSurface({
+            element: elements.projectGallery,
+            motion: projectSwipeMotion,
+            getExtent: () => projectViewportWidth || innerWidth,
+            shouldHandleWheel: event => !(
                 matchMedia('(max-width: 760px)').matches &&
                 Math.abs(event.deltaY) > Math.abs(event.deltaX)
-            ) {
-                return;
-            }
-
-            const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-            if (Math.abs(delta) < .1) return;
-            event.preventDefault();
-            projectSwipeMotion.begin();
-            projectSwipeMotion.move(delta * wheelPixels(event, elements.projectGallery.clientWidth));
-            clearTimeout(projectWheelReleaseTimer);
-            projectWheelReleaseTimer = setTimeout(() => projectSwipeMotion.release(), 110);
-        }, { passive: false });
-        elements.projectGallery.addEventListener('touchstart', event => {
-            if (event.touches.length !== 1) return;
-            clearTimeout(projectWheelReleaseTimer);
-            projectTouchStartX = event.touches[0].clientX;
-            projectTouchStartY = event.touches[0].clientY;
-            projectTouchLastX = projectTouchStartX;
-            projectTouchAxis = '';
-        }, { passive: true });
-        elements.projectGallery.addEventListener('touchmove', event => {
-            const touch = event.touches[0];
-            if (!touch) return;
-            const deltaX = touch.clientX - projectTouchStartX;
-            const deltaY = touch.clientY - projectTouchStartY;
-            if (!projectTouchAxis && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
-                projectTouchAxis = Math.abs(deltaX) > Math.abs(deltaY) ? 'x' : 'y';
-                if (projectTouchAxis === 'x') projectSwipeMotion.begin();
-            }
-            if (projectTouchAxis !== 'x') return;
-            event.preventDefault();
-            projectSwipeMotion.move(projectTouchLastX - touch.clientX);
-            projectTouchLastX = touch.clientX;
-        }, { passive: false });
-        elements.projectGallery.addEventListener('touchend', () => {
-            if (projectTouchAxis === 'x') {
-                projectSuppressClickUntil = performance.now() + 450;
-                projectSwipeMotion.release();
-            }
-            projectTouchAxis = '';
-        }, { passive: true });
-        elements.projectGallery.addEventListener('touchcancel', () => {
-            projectTouchAxis = '';
-            projectSwipeMotion.reset();
-        }, { passive: true });
+            ),
+            onHorizontalRelease: () => { projectSuppressClickUntil = performance.now() + 450; }
+        });
         elements.previousProject.addEventListener('click', () => switchProject(-1));
         elements.nextProject.addEventListener('click', () => switchProject(1));
         elements.lightboxClose.addEventListener('click', closeLightbox);
